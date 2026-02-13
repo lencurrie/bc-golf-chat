@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Profile, Channel, ChannelMember } from '@/types/database'
 import { 
   ArrowLeft, Users, Hash, Plus, Trash2, UserCheck, UserX,
@@ -12,7 +11,7 @@ import Link from 'next/link'
 interface AdminPanelProps {
   currentUser: Profile
   users: Profile[]
-  channels: (Channel & { channel_members: ChannelMember[] })[]
+  channels: (Channel & { members: ChannelMember[] })[]
 }
 
 export default function AdminPanel({ currentUser, users: initialUsers, channels: initialChannels }: AdminPanelProps) {
@@ -24,18 +23,23 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
   const [newChannelName, setNewChannelName] = useState('')
   const [newChannelDesc, setNewChannelDesc] = useState('')
   const [showAddMember, setShowAddMember] = useState<string | null>(null)
-  const supabase = createClient()
 
   // Toggle user active status
   const toggleUserActive = async (userId: string, currentStatus: boolean) => {
     setLoading(userId)
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_active: !currentStatus })
-      .eq('id', userId)
-    
-    if (!error) {
-      setUsers(users.map(u => u.id === userId ? { ...u, is_active: !currentStatus } : u))
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, isActive: !currentStatus })
+      })
+      
+      if (res.ok) {
+        const { user } = await res.json()
+        setUsers(users.map(u => u.id === userId ? user : u))
+      }
+    } catch (error) {
+      console.error('Toggle user active error:', error)
     }
     setLoading(null)
   }
@@ -45,13 +49,19 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
     if (userId === currentUser.id) return // Can't remove own admin
     
     setLoading(userId)
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_admin: !currentStatus })
-      .eq('id', userId)
-    
-    if (!error) {
-      setUsers(users.map(u => u.id === userId ? { ...u, is_admin: !currentStatus } : u))
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, isAdmin: !currentStatus })
+      })
+      
+      if (res.ok) {
+        const { user } = await res.json()
+        setUsers(users.map(u => u.id === userId ? user : u))
+      }
+    } catch (error) {
+      console.error('Toggle user admin error:', error)
     }
     setLoading(null)
   }
@@ -62,36 +72,25 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
     if (!newChannelName.trim()) return
     
     setLoading('new-channel')
-    const { data, error } = await supabase
-      .from('channels')
-      .insert({
-        name: newChannelName.trim(),
-        description: newChannelDesc.trim() || null,
-        created_by: currentUser.id
+    try {
+      const res = await fetch('/api/admin/channels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newChannelName.trim(),
+          description: newChannelDesc.trim() || null
+        })
       })
-      .select('*, channel_members(*)')
-      .single()
-    
-    if (!error && data) {
-      // Add all active users to the channel
-      const activeUsers = users.filter(u => u.is_active)
-      await supabase.from('channel_members').insert(
-        activeUsers.map(u => ({ channel_id: data.id, user_id: u.id }))
-      )
       
-      // Refresh channel members
-      const { data: updated } = await supabase
-        .from('channels')
-        .select('*, channel_members(*)')
-        .eq('id', data.id)
-        .single()
-      
-      if (updated) {
-        setChannels([...channels, updated])
+      if (res.ok) {
+        const { channel } = await res.json()
+        setChannels([...channels, channel])
+        setNewChannelName('')
+        setNewChannelDesc('')
+        setShowNewChannel(false)
       }
-      setNewChannelName('')
-      setNewChannelDesc('')
-      setShowNewChannel(false)
+    } catch (error) {
+      console.error('Create channel error:', error)
     }
     setLoading(null)
   }
@@ -101,13 +100,16 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
     if (!confirm('Are you sure you want to delete this channel? All messages will be lost.')) return
     
     setLoading(channelId)
-    const { error } = await supabase
-      .from('channels')
-      .delete()
-      .eq('id', channelId)
-    
-    if (!error) {
-      setChannels(channels.filter(c => c.id !== channelId))
+    try {
+      const res = await fetch(`/api/admin/channels?channelId=${channelId}`, {
+        method: 'DELETE'
+      })
+      
+      if (res.ok) {
+        setChannels(channels.filter(c => c.id !== channelId))
+      }
+    } catch (error) {
+      console.error('Delete channel error:', error)
     }
     setLoading(null)
   }
@@ -115,21 +117,19 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
   // Add user to channel
   const addUserToChannel = async (channelId: string, userId: string) => {
     setLoading(`add-${channelId}-${userId}`)
-    const { error } = await supabase
-      .from('channel_members')
-      .insert({ channel_id: channelId, user_id: userId })
-    
-    if (!error) {
-      // Refresh channels
-      const { data } = await supabase
-        .from('channels')
-        .select('*, channel_members(*)')
-        .eq('id', channelId)
-        .single()
+    try {
+      const res = await fetch('/api/admin/channel-members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId, userId })
+      })
       
-      if (data) {
-        setChannels(channels.map(c => c.id === channelId ? data : c))
+      if (res.ok) {
+        const { channel } = await res.json()
+        setChannels(channels.map(c => c.id === channelId ? channel : c))
       }
+    } catch (error) {
+      console.error('Add member error:', error)
     }
     setLoading(null)
     setShowAddMember(null)
@@ -138,21 +138,24 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
   // Remove user from channel
   const removeUserFromChannel = async (channelId: string, userId: string) => {
     setLoading(`remove-${channelId}-${userId}`)
-    const { error } = await supabase
-      .from('channel_members')
-      .delete()
-      .match({ channel_id: channelId, user_id: userId })
-    
-    if (!error) {
-      setChannels(channels.map(c => {
-        if (c.id === channelId) {
-          return {
-            ...c,
-            channel_members: c.channel_members.filter(m => m.user_id !== userId)
+    try {
+      const res = await fetch(`/api/admin/channel-members?channelId=${channelId}&userId=${userId}`, {
+        method: 'DELETE'
+      })
+      
+      if (res.ok) {
+        setChannels(channels.map(c => {
+          if (c.id === channelId) {
+            return {
+              ...c,
+              members: c.members.filter(m => m.userId !== userId)
+            }
           }
-        }
-        return c
-      }))
+          return c
+        }))
+      }
+    } catch (error) {
+      console.error('Remove member error:', error)
     }
     setLoading(null)
   }
@@ -209,19 +212,19 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
             {users.map((user) => (
               <div
                 key={user.id}
-                className={`bg-gray-800 rounded-xl p-4 ${!user.is_active ? 'opacity-60' : ''}`}
+                className={`bg-gray-800 rounded-xl p-4 ${!user.isActive ? 'opacity-60' : ''}`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${
-                      user.is_admin ? 'bg-green-600' : 'bg-gray-600'
+                      user.isAdmin ? 'bg-green-600' : 'bg-gray-600'
                     }`}>
-                      {user.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                      {user.fullName?.charAt(0) || user.email.charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <p className="font-medium text-white">
-                        {user.full_name || 'No name'}
-                        {user.is_admin && (
+                        {user.fullName || 'No name'}
+                        {user.isAdmin && (
                           <span className="ml-2 text-xs bg-green-600 px-2 py-0.5 rounded-full">Admin</span>
                         )}
                       </p>
@@ -233,14 +236,14 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
                     {/* Toggle Admin */}
                     {user.id !== currentUser.id && (
                       <button
-                        onClick={() => toggleUserAdmin(user.id, user.is_admin)}
+                        onClick={() => toggleUserAdmin(user.id, user.isAdmin)}
                         disabled={loading === user.id}
                         className={`p-2 rounded-lg transition-colors touch-target ${
-                          user.is_admin
+                          user.isAdmin
                             ? 'bg-green-600/20 text-green-400'
                             : 'bg-gray-700 text-gray-400 hover:text-white'
                         }`}
-                        title={user.is_admin ? 'Remove admin' : 'Make admin'}
+                        title={user.isAdmin ? 'Remove admin' : 'Make admin'}
                       >
                         <Settings className="w-5 h-5" />
                       </button>
@@ -249,18 +252,18 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
                     {/* Toggle Active */}
                     {user.id !== currentUser.id && (
                       <button
-                        onClick={() => toggleUserActive(user.id, user.is_active)}
+                        onClick={() => toggleUserActive(user.id, user.isActive)}
                         disabled={loading === user.id}
                         className={`p-2 rounded-lg transition-colors touch-target ${
-                          user.is_active
+                          user.isActive
                             ? 'bg-green-600/20 text-green-400'
                             : 'bg-red-600/20 text-red-400'
                         }`}
-                        title={user.is_active ? 'Deactivate user' : 'Activate user'}
+                        title={user.isActive ? 'Deactivate user' : 'Activate user'}
                       >
                         {loading === user.id ? (
                           <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : user.is_active ? (
+                        ) : user.isActive ? (
                           <UserCheck className="w-5 h-5" />
                         ) : (
                           <UserX className="w-5 h-5" />
@@ -372,7 +375,7 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
                     <p className="text-sm text-gray-400 mb-2">Add user to channel:</p>
                     <div className="space-y-1 max-h-40 overflow-y-auto">
                       {users
-                        .filter(u => u.is_active && !channel.channel_members.some(m => m.user_id === u.id))
+                        .filter(u => u.isActive && !channel.members.some(m => m.userId === u.id))
                         .map(user => (
                           <button
                             key={user.id}
@@ -385,10 +388,10 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
                             ) : (
                               <Plus className="w-4 h-4 text-green-400" />
                             )}
-                            <span className="text-white text-sm">{user.full_name || user.email}</span>
+                            <span className="text-white text-sm">{user.fullName || user.email}</span>
                           </button>
                         ))}
-                      {users.filter(u => u.is_active && !channel.channel_members.some(m => m.user_id === u.id)).length === 0 && (
+                      {users.filter(u => u.isActive && !channel.members.some(m => m.userId === u.id)).length === 0 && (
                         <p className="text-sm text-gray-500 py-2">All users are already members</p>
                       )}
                     </div>
@@ -397,15 +400,15 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
 
                 {/* Members list */}
                 <div className="flex flex-wrap gap-2">
-                  {channel.channel_members.map((member) => {
-                    const user = users.find(u => u.id === member.user_id)
+                  {channel.members.map((member) => {
+                    const user = users.find(u => u.id === member.userId)
                     if (!user) return null
                     return (
                       <div
                         key={member.id}
                         className="flex items-center gap-1 px-2 py-1 bg-gray-700 rounded-full text-sm"
                       >
-                        <span className="text-gray-300">{user.full_name || user.email}</span>
+                        <span className="text-gray-300">{user.fullName || user.email}</span>
                         <button
                           onClick={() => removeUserFromChannel(channel.id, user.id)}
                           disabled={loading === `remove-${channel.id}-${user.id}`}
@@ -421,7 +424,7 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
                       </div>
                     )
                   })}
-                  {channel.channel_members.length === 0 && (
+                  {channel.members.length === 0 && (
                     <p className="text-sm text-gray-500">No members yet</p>
                   )}
                 </div>

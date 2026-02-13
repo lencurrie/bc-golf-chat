@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
+import Providers from '@/components/Providers'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -37,8 +38,10 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={`${inter.className} bg-gray-900 text-white`}>
-        <ServiceWorkerRegister />
-        {children}
+        <Providers>
+          <ServiceWorkerRegister />
+          {children}
+        </Providers>
       </body>
     </html>
   )

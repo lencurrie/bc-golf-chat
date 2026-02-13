@@ -1,11 +1,9 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { signIn } from 'next-auth/react'
 import { Loader2, MessageCircle } from 'lucide-react'
 
 export default function LoginPage() {
@@ -14,7 +12,6 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,13 +19,14 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const result = await signIn('credentials', {
         email,
         password,
+        redirect: false
       })
 
-      if (error) {
-        setError(error.message)
+      if (result?.error) {
+        setError('Invalid email or password')
       } else {
         router.push('/chat')
         router.refresh()

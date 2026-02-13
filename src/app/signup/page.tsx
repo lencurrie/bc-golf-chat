@@ -1,11 +1,9 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { signIn } from 'next-auth/react'
 import { Loader2, MessageCircle } from 'lucide-react'
 
 export default function SignupPage() {
@@ -15,7 +13,6 @@ export default function SignupPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,18 +20,30 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-        },
+      // First, create the account
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, fullName })
       })
 
-      if (error) {
-        setError(error.message)
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'Failed to create account')
+        setLoading(false)
+        return
+      }
+
+      // Then sign in
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false
+      })
+
+      if (result?.error) {
+        setError('Account created but failed to sign in. Please try logging in.')
       } else {
         router.push('/chat')
         router.refresh()

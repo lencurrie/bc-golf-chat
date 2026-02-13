@@ -1,47 +1,90 @@
-import { createClient } from '@/lib/supabase/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
+import prisma from '@/lib/db'
 import ChatInterface from '@/components/ChatInterface'
 
 export default async function ChatPage() {
-  const supabase = await createClient()
+  const session = await getServerSession(authOptions)
   
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!session?.user?.id) {
+    redirect('/login')
+  }
 
   // Fetch user profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const profile = await prisma.profile.findUnique({
+    where: { id: session.user.id },
+    select: {
+      id: true,
+      email: true,
+      fullName: true,
+      avatarUrl: true,
+      isAdmin: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true
+    }
+  })
+
+  if (!profile) {
+    redirect('/login')
+  }
 
   // Fetch channels user is member of
-  const { data: channelMemberships } = await supabase
-    .from('channel_members')
-    .select('channel_id')
-    .eq('user_id', user.id)
+  const channelMemberships = await prisma.channelMember.findMany({
+    where: { userId: session.user.id },
+    select: { channelId: true }
+  })
 
-  const channelIds = channelMemberships?.map(m => m.channel_id) || []
+  const channelIds = channelMemberships.map(m => m.channelId)
 
-  const { data: channels } = await supabase
-    .from('channels')
-    .select('*')
-    .in('id', channelIds.length > 0 ? channelIds : ['00000000-0000-0000-0000-000000000000'])
-    .order('name')
+  const channels = await prisma.channel.findMany({
+    where: channelIds.length > 0 ? { id: { in: channelIds } } : { id: 'none' },
+    orderBy: { name: 'asc' }
+  })
 
   // Fetch all active users for DMs
-  const { data: users } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('is_active', true)
-    .neq('id', user.id)
-    .order('full_name')
+  const users = await prisma.profile.findMany({
+    where: {
+      isActive: true,
+      id: { not: session.user.id }
+    },
+    select: {
+      id: true,
+      email: true,
+      fullName: true,
+      avatarUrl: true,
+      isAdmin: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true
+    },
+    orderBy: { fullName: 'asc' }
+  })
+
+  // Convert dates to ISO strings for serialization
+  const serializedProfile = {
+    ...profile,
+    createdAt: profile.createdAt.toISOString(),
+    updatedAt: profile.updatedAt.toISOString()
+  }
+
+  const serializedChannels = channels.map(c => ({
+    ...c,
+    createdAt: c.createdAt.toISOString()
+  }))
+
+  const serializedUsers = users.map(u => ({
+    ...u,
+    createdAt: u.createdAt.toISOString(),
+    updatedAt: u.updatedAt.toISOString()
+  }))
 
   return (
     <ChatInterface
-      currentUser={profile!}
-      initialChannels={channels || []}
-      allUsers={users || []}
+      currentUser={serializedProfile}
+      initialChannels={serializedChannels}
+      allUsers={serializedUsers}
     />
   )
 }

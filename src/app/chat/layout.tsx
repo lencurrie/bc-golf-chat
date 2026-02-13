@@ -1,28 +1,27 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import prisma from '@/lib/db'
 
 export default async function ChatLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const session = await getServerSession(authOptions)
 
-  if (!user) {
+  if (!session?.user?.id) {
     redirect('/login')
   }
 
   // Check if user profile exists and is active
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_active')
-    .eq('id', user.id)
-    .single()
+  const profile = await prisma.profile.findUnique({
+    where: { id: session.user.id },
+    select: { isActive: true }
+  })
 
-  if (profile && !profile.is_active) {
-    // User has been deactivated
-    await supabase.auth.signOut()
+  if (profile && !profile.isActive) {
+    // User has been deactivated - they'll be logged out on next request
     redirect('/login?error=account_disabled')
   }
 

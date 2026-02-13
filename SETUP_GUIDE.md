@@ -1,191 +1,103 @@
-# BC Golf Safaris Team Chat - Setup Guide
+# BC Golf Chat - Setup Guide
 
-## 🚀 Deployed URLs
+## Deploying to Vercel
 
-- **GitHub Repo:** https://github.com/lencurrie/bc-golf-chat
-- **Vercel App:** https://bc-golf-chat.vercel.app
+### Step 1: Push to GitHub
 
-## ⚠️ IMPORTANT: Complete Setup Required
+The code should already be in the repository. If not:
 
-The app is deployed but needs Supabase configuration to work. Follow these steps:
-
----
-
-## Step 1: Create Supabase Project
-
-1. Go to [supabase.com](https://supabase.com) and sign up (free)
-2. Click "New Project"
-3. Choose organization (create one if needed)
-4. Enter project details:
-   - **Name:** bc-golf-chat
-   - **Database Password:** (save this somewhere secure!)
-   - **Region:** Pick closest to your users
-5. Click "Create new project" (takes ~2 minutes)
-
----
-
-## Step 2: Run Database Schema
-
-1. In Supabase, click **SQL Editor** in the left sidebar
-2. Click **New query**
-3. Copy the entire contents of `supabase-schema.sql` from this repo
-4. Click **Run** (green play button)
-5. You should see "Success. No rows returned"
-
----
-
-## Step 3: Enable Realtime
-
-1. Go to **Database > Replication** in Supabase
-2. Find "supabase_realtime" publication
-3. Click the toggle to enable for:
-   - ✅ messages
-   - ✅ direct_messages
-   - ✅ channels
-   - ✅ channel_members
-
----
-
-## Step 4: Configure Authentication
-
-1. Go to **Authentication > Providers**
-2. Ensure **Email** provider is enabled
-3. For testing, disable email confirmation:
-   - Go to **Authentication > Settings**
-   - Turn OFF "Enable email confirmations"
-   - Click **Save**
-
----
-
-## Step 5: Get API Keys
-
-1. Go to **Settings > API** in Supabase
-2. Copy these values:
-   - **Project URL** → Will be your `NEXT_PUBLIC_SUPABASE_URL`
-   - **anon public key** → Will be your `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - **service_role key** → Will be your `SUPABASE_SERVICE_ROLE_KEY`
-
----
-
-## Step 6: Add Environment Variables to Vercel
-
-1. Go to [vercel.com/lencurries-projects/bc-golf-chat/settings/environment-variables](https://vercel.com/lencurries-projects/bc-golf-chat/settings/environment-variables)
-2. Add these environment variables:
-
-| Name | Value |
-|------|-------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Your Supabase service role key |
-
-3. Click **Save** for each
-4. Go to **Deployments** tab
-5. Click the `...` menu on the latest deployment
-6. Click **Redeploy** → **Redeploy**
-
----
-
-## Step 7: Create Admin User
-
-1. Go to https://bc-golf-chat.vercel.app/signup
-2. Create an account with your email
-3. Go back to Supabase **SQL Editor**
-4. Run this query (replace email):
-
-```sql
-UPDATE profiles 
-SET is_admin = true 
-WHERE email = 'your-email@example.com';
+```bash
+cd ~/.openclaw/workspace/bc-golf-chat
+git add .
+git commit -m "Convert from Supabase to Vercel Postgres"
+git push origin main
 ```
 
-5. Add yourself to the General channel:
+### Step 2: Connect Vercel Postgres
 
-```sql
-INSERT INTO channel_members (channel_id, user_id)
-SELECT '00000000-0000-0000-0000-000000000001', id 
-FROM profiles 
-WHERE email = 'your-email@example.com';
+1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
+2. Select the **bc-golf-chat** project
+3. Click **Storage** tab
+4. Click **Create Database** → **Postgres**
+5. Name it (e.g., "bc-golf-chat-db")
+6. Select your region (closest to your users)
+7. Click **Create**
+
+The database will automatically be connected to your project with the required environment variables.
+
+### Step 3: Add NextAuth Secret
+
+1. In Vercel Dashboard, go to **Settings** → **Environment Variables**
+2. Add:
+   - `NEXTAUTH_SECRET` = (generate with `openssl rand -base64 32`)
+   - `NEXTAUTH_URL` = `https://bc-golf-chat.vercel.app`
+
+### Step 4: Deploy
+
+1. Vercel will automatically redeploy when you push changes
+2. Or manually trigger: **Deployments** → **Redeploy**
+
+### Step 5: Initialize Database
+
+After deployment, the database schema needs to be pushed:
+
+**Option A: Via Vercel CLI (recommended)**
+```bash
+vercel env pull .env.local
+npx prisma db push
 ```
 
----
+**Option B: Via Vercel Dashboard**
+1. Go to **Deployments** → latest deployment
+2. Click **Functions** log to see if Prisma ran
+3. If tables don't exist, you may need to run prisma db push locally
 
-## Step 8: Test the App
+### Step 6: Create Admin User
 
-1. Go to https://bc-golf-chat.vercel.app
-2. Log in with your admin account
-3. You should see the chat interface
-4. Open the menu (hamburger icon) to see channels and admin link
+1. Visit https://bc-golf-chat.vercel.app/signup
+2. Create your account
+3. In Vercel Dashboard → Storage → Your Database → Data Browser
+4. Find the `profiles` table
+5. Edit your user row and set `is_admin` to `true`
 
----
-
-## Adding New Users
-
-### Option A: Self-signup
-Have users go to https://bc-golf-chat.vercel.app/signup
-
-Then add them to channels via SQL:
-```sql
-INSERT INTO channel_members (channel_id, user_id)
-SELECT '00000000-0000-0000-0000-000000000001', id 
-FROM profiles 
-WHERE email = 'new-user@example.com';
+Or use Prisma Studio locally:
+```bash
+vercel env pull .env.local
+npx prisma studio
 ```
 
-### Option B: Admin Panel
+### Step 7: Create Default Channel
+
 1. Log in as admin
-2. Open menu → Admin Panel
-3. Use the Channels tab to add users to channels
-
----
-
-## Mobile Installation (PWA)
-
-### iPhone/iPad:
-1. Open the chat URL in Safari
-2. Tap the Share button (box with arrow)
-3. Scroll down and tap "Add to Home Screen"
-4. Tap "Add"
-
-### Android:
-1. Open the chat URL in Chrome
-2. Tap the menu (three dots)
-3. Tap "Add to Home screen" or "Install app"
-
----
-
-## Features
-
-✅ Real-time messaging
-✅ Channel conversations
-✅ Direct messages (1:1)
-✅ Admin panel (user management, channel management)
-✅ Mobile-optimized (PWA)
-✅ Push notification support
-✅ Dark theme
-
----
+2. Go to Admin Panel
+3. Create a "General" channel
+4. All new users will be added to it automatically
 
 ## Troubleshooting
 
-**"Invalid API key" error:**
-- Check environment variables in Vercel are correct
-- Redeploy after adding/changing env vars
+### "Cannot find module '@prisma/client'"
+Run: `npx prisma generate`
 
-**Can't log in:**
-- Make sure email confirmation is disabled in Supabase Auth settings
-- Check browser console for errors
+### Database connection errors
+- Ensure Vercel Postgres is connected in Storage
+- Check environment variables are set
+- For local dev: `vercel env pull .env.local`
 
-**Messages not appearing:**
-- Verify Realtime is enabled for tables in Supabase
-- Check you're a member of the channel
+### Auth errors
+- Ensure `NEXTAUTH_SECRET` is set
+- Ensure `NEXTAUTH_URL` matches your deployment URL
 
-**Push notifications not working:**
-- Notifications require HTTPS (works on Vercel)
-- User must grant permission when prompted
-- Check browser supports Push API
+### Users can't see channels
+- Admins need to add users to channels manually
+- Or modify signup to auto-add users to "General" channel
 
----
+## Environment Variables
 
-## Support
-
-For issues, check the GitHub repo: https://github.com/lencurrie/bc-golf-chat
+| Variable | Description |
+|----------|-------------|
+| `POSTGRES_PRISMA_URL` | Prisma connection string (auto-set by Vercel) |
+| `POSTGRES_URL_NON_POOLING` | Direct Postgres URL for migrations |
+| `NEXTAUTH_SECRET` | Secret for signing JWT tokens |
+| `NEXTAUTH_URL` | Your app's URL |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | (Optional) For push notifications |
+| `VAPID_PRIVATE_KEY` | (Optional) For push notifications |

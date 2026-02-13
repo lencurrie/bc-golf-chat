@@ -1,55 +1,62 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import prisma from '@/lib/db'
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const subscription = await request.json()
 
-    // Store push subscription
-    const { error } = await supabase.from('push_subscriptions').upsert({
-      user_id: user.id,
-      endpoint: subscription.endpoint,
-      p256dh: subscription.keys.p256dh,
-      auth: subscription.keys.auth,
-    }, {
-      onConflict: 'user_id,endpoint'
+    await prisma.pushSubscription.upsert({
+      where: {
+        userId_endpoint: {
+          userId: session.user.id,
+          endpoint: subscription.endpoint
+        }
+      },
+      update: {
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth
+      },
+      create: {
+        userId: session.user.id,
+        endpoint: subscription.endpoint,
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth
+      }
     })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
     return NextResponse.json({ success: true })
-  } catch {
+  } catch (error) {
+    console.error('Push subscribe error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { endpoint } = await request.json()
 
-    await supabase
-      .from('push_subscriptions')
-      .delete()
-      .match({ user_id: user.id, endpoint })
+    await prisma.pushSubscription.deleteMany({
+      where: {
+        userId: session.user.id,
+        endpoint
+      }
+    })
 
     return NextResponse.json({ success: true })
-  } catch {
+  } catch (error) {
+    console.error('Push unsubscribe error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

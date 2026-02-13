@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { signOut } from 'next-auth/react'
 import { Profile, Channel, Message, DirectMessage } from '@/types/database'
 import { 
   Menu, X, Send, Hash, User, Settings, LogOut, 
@@ -29,7 +29,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const supabase = createClient()
+  const lastMessageTimeRef = useRef<string | null>(null)
 
   // Scroll to bottom when messages change
   const scrollToBottom = useCallback(() => {
@@ -46,99 +46,74 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
 
     const loadMessages = async () => {
       setLoading(true)
+      lastMessageTimeRef.current = null
       
-      if (selectedChat.type === 'channel') {
-        const { data } = await supabase
-          .from('messages')
-          .select('*, sender:profiles(*)')
-          .eq('channel_id', selectedChat.id)
-          .order('created_at', { ascending: true })
-          .limit(100)
+      try {
+        let url: string
+        if (selectedChat.type === 'channel') {
+          url = `/api/messages?channelId=${selectedChat.id}`
+        } else {
+          url = `/api/direct-messages?recipientId=${selectedChat.id}`
+        }
+
+        const res = await fetch(url)
+        const data = await res.json()
         
-        setMessages(data || [])
-      } else {
-        const { data } = await supabase
-          .from('direct_messages')
-          .select('*, sender:profiles!sender_id(*), recipient:profiles!recipient_id(*)')
-          .or(`and(sender_id.eq.${currentUser.id},recipient_id.eq.${selectedChat.id}),and(sender_id.eq.${selectedChat.id},recipient_id.eq.${currentUser.id})`)
-          .order('created_at', { ascending: true })
-          .limit(100)
-        
-        setMessages(data || [])
+        if (res.ok) {
+          const msgs = data.messages || []
+          setMessages(msgs)
+          if (msgs.length > 0) {
+            lastMessageTimeRef.current = msgs[msgs.length - 1].createdAt
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load messages:', error)
       }
       
       setLoading(false)
     }
 
     loadMessages()
-  }, [selectedChat, currentUser.id, supabase])
+  }, [selectedChat])
 
-  // Real-time subscriptions
+  // Poll for new messages every 3 seconds
   useEffect(() => {
     if (!selectedChat) return
 
-    let subscription: ReturnType<typeof supabase.channel>
+    const pollMessages = async () => {
+      if (!lastMessageTimeRef.current) return
 
-    if (selectedChat.type === 'channel') {
-      subscription = supabase
-        .channel(`messages:${selectedChat.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `channel_id=eq.${selectedChat.id}`
-        }, async (payload) => {
-          // Fetch the full message with sender info
-          const { data } = await supabase
-            .from('messages')
-            .select('*, sender:profiles(*)')
-            .eq('id', payload.new.id)
-            .single()
+      try {
+        let url: string
+        if (selectedChat.type === 'channel') {
+          url = `/api/messages?channelId=${selectedChat.id}&after=${encodeURIComponent(lastMessageTimeRef.current)}`
+        } else {
+          url = `/api/direct-messages?recipientId=${selectedChat.id}&after=${encodeURIComponent(lastMessageTimeRef.current)}`
+        }
+
+        const res = await fetch(url)
+        const data = await res.json()
+        
+        if (res.ok && data.messages?.length > 0) {
+          const newMsgs = data.messages
+          setMessages(prev => [...prev, ...newMsgs])
+          lastMessageTimeRef.current = newMsgs[newMsgs.length - 1].createdAt
           
-          if (data) {
-            setMessages(prev => [...prev, data])
-            
-            // Show notification if message is from someone else
-            if (data.sender_id !== currentUser.id && notificationsEnabled) {
-              showNotification(data.sender?.full_name || 'Someone', data.content)
-            }
+          // Show notification for messages from others
+          const latestMsg = newMsgs[newMsgs.length - 1]
+          if (latestMsg.senderId !== currentUser.id && notificationsEnabled) {
+            const sender = latestMsg.sender
+            showNotification(sender?.fullName || sender?.email || 'Someone', latestMsg.content)
           }
-        })
-        .subscribe()
-    } else {
-      subscription = supabase
-        .channel(`dm:${selectedChat.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'direct_messages',
-        }, async (payload) => {
-          const dm = payload.new as DirectMessage
-          // Only add if this DM is between current user and selected user
-          if ((dm.sender_id === currentUser.id && dm.recipient_id === selectedChat.id) ||
-              (dm.sender_id === selectedChat.id && dm.recipient_id === currentUser.id)) {
-            const { data } = await supabase
-              .from('direct_messages')
-              .select('*, sender:profiles!sender_id(*), recipient:profiles!recipient_id(*)')
-              .eq('id', dm.id)
-              .single()
-            
-            if (data) {
-              setMessages(prev => [...prev, data])
-              
-              if (data.sender_id !== currentUser.id && notificationsEnabled) {
-                showNotification(data.sender?.full_name || 'Someone', data.content)
-              }
-            }
-          }
-        })
-        .subscribe()
+        }
+      } catch (error) {
+        console.error('Poll error:', error)
+      }
     }
 
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [selectedChat, currentUser.id, notificationsEnabled, supabase])
+    const interval = setInterval(pollMessages, 3000)
+    return () => clearInterval(interval)
+  }, [selectedChat, currentUser.id, notificationsEnabled])
 
   // Request notification permission
   const requestNotificationPermission = async () => {
@@ -162,18 +137,32 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
     const content = newMessage.trim()
     setNewMessage('')
 
-    if (selectedChat.type === 'channel') {
-      await supabase.from('messages').insert({
-        content,
-        channel_id: selectedChat.id,
-        sender_id: currentUser.id
+    try {
+      let url: string
+      let body: object
+      
+      if (selectedChat.type === 'channel') {
+        url = '/api/messages'
+        body = { channelId: selectedChat.id, content }
+      } else {
+        url = '/api/direct-messages'
+        body = { recipientId: selectedChat.id, content }
+      }
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
       })
-    } else {
-      await supabase.from('direct_messages').insert({
-        content,
-        sender_id: currentUser.id,
-        recipient_id: selectedChat.id
-      })
+
+      const data = await res.json()
+      
+      if (res.ok && data.message) {
+        setMessages(prev => [...prev, data.message])
+        lastMessageTimeRef.current = data.message.createdAt
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error)
     }
 
     inputRef.current?.focus()
@@ -181,8 +170,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
 
   // Sign out
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    window.location.href = '/login'
+    await signOut({ callbackUrl: '/login' })
   }
 
   // Format timestamp
@@ -255,7 +243,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
             ) : (
               messages.map((msg) => {
                 const sender = getSender(msg)
-                const isOwn = msg.sender_id === currentUser.id
+                const isOwn = msg.senderId === currentUser.id
                 
                 return (
                   <div
@@ -265,14 +253,14 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
                     <div className={`max-w-[85%] ${isOwn ? 'items-end' : 'items-start'}`}>
                       {!isOwn && (
                         <p className="text-xs text-gray-400 mb-1 ml-1">
-                          {sender?.full_name || sender?.email || 'Unknown'}
+                          {sender?.fullName || sender?.email || 'Unknown'}
                         </p>
                       )}
                       <div className={`message-bubble ${isOwn ? 'message-bubble-sent' : 'message-bubble-received'}`}>
                         <p className="whitespace-pre-wrap">{msg.content}</p>
                       </div>
                       <p className={`text-xs text-gray-500 mt-1 ${isOwn ? 'text-right mr-1' : 'ml-1'}`}>
-                        {formatMessageTime(msg.created_at)}
+                        {formatMessageTime(msg.createdAt)}
                       </p>
                     </div>
                   </div>
@@ -328,10 +316,10 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
         <div className="p-4 border-b border-gray-700 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white font-semibold">
-              {currentUser.full_name?.charAt(0) || currentUser.email.charAt(0).toUpperCase()}
+              {currentUser.fullName?.charAt(0) || currentUser.email.charAt(0).toUpperCase()}
             </div>
             <div>
-              <p className="font-medium text-white">{currentUser.full_name || 'User'}</p>
+              <p className="font-medium text-white">{currentUser.fullName || 'User'}</p>
               <p className="text-xs text-gray-400">{currentUser.email}</p>
             </div>
           </div>
@@ -387,7 +375,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
                 <button
                   key={user.id}
                   onClick={() => {
-                    setSelectedChat({ type: 'dm', id: user.id, name: user.full_name || user.email })
+                    setSelectedChat({ type: 'dm', id: user.id, name: user.fullName || user.email })
                     setSidebarOpen(false)
                   }}
                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors touch-target ${
@@ -397,9 +385,9 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
                   }`}
                 >
                   <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center text-white text-sm font-medium shrink-0">
-                    {user.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                    {user.fullName?.charAt(0) || user.email.charAt(0).toUpperCase()}
                   </div>
-                  <span className="truncate">{user.full_name || user.email}</span>
+                  <span className="truncate">{user.fullName || user.email}</span>
                 </button>
               ))}
             </div>
@@ -408,7 +396,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
 
         {/* Sidebar footer */}
         <div className="p-4 border-t border-gray-700 space-y-2">
-          {currentUser.is_admin && (
+          {currentUser.isAdmin && (
             <a
               href="/admin"
               className="flex items-center gap-2 px-3 py-2 text-gray-300 hover:bg-gray-700/50 rounded-lg transition-colors touch-target"

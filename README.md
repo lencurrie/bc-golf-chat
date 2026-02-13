@@ -1,133 +1,140 @@
 # BC Golf Safaris Team Chat
 
-A mobile-optimized team chat application built with Next.js 14 and Supabase.
+A mobile-first team chat application built with Next.js, Vercel Postgres, and NextAuth.js.
 
 ## Features
 
-- 📱 **Mobile-First PWA** - Works great on phones, installable as an app
-- 💬 **Real-time Messaging** - Instant message delivery with Supabase Realtime
-- 🔔 **Push Notifications** - Get notified of new messages
-- 👥 **Channels** - Group conversations for teams
-- 🤝 **Direct Messages** - Private 1:1 conversations
-- ⚙️ **Admin Panel** - Manage users and channels
-- 🔐 **Secure Auth** - Email/password authentication via Supabase
+- 📱 Mobile-first design optimized for iOS and Android
+- 💬 Channel-based messaging
+- 📩 Direct messages between team members
+- 🔔 Push notifications support
+- 👤 User management (admin panel)
+- 🔐 Secure authentication with NextAuth.js
+- 📊 Postgres database with Prisma ORM
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14 (App Router), React, TypeScript
-- **Styling**: Tailwind CSS
-- **Backend**: Supabase (Auth, Database, Realtime)
-- **Deployment**: Vercel
+- **Framework:** Next.js 14 (App Router)
+- **Database:** Vercel Postgres (via Prisma)
+- **Authentication:** NextAuth.js (Credentials provider)
+- **Styling:** Tailwind CSS
+- **Icons:** Lucide React
+- **Deployment:** Vercel
 
-## Setup Instructions
+## Quick Start
 
-### 1. Supabase Setup
+### Prerequisites
 
-1. Create a free account at [supabase.com](https://supabase.com)
-2. Create a new project
-3. Go to **SQL Editor** and run the contents of `supabase-schema.sql`
-4. Go to **Project Settings > API** and copy:
-   - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon` public key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY`
+- Node.js 18+
+- A Vercel account
+- Vercel CLI (optional, for local development)
 
-### 2. Enable Realtime
+### Setup
 
-1. In Supabase, go to **Database > Replication**
-2. Enable realtime for these tables:
-   - `messages`
-   - `direct_messages`
-   - `channels`
-   - `channel_members`
+1. **Clone and install:**
+   ```bash
+   git clone https://github.com/lencurrie/bc-golf-chat.git
+   cd bc-golf-chat
+   npm install
+   ```
 
-### 3. Configure Authentication
+2. **Configure environment:**
+   ```bash
+   cp .env.local.example .env.local
+   ```
+   
+   Generate a NextAuth secret:
+   ```bash
+   openssl rand -base64 32
+   ```
+   
+   Add it to `.env.local`:
+   ```
+   NEXTAUTH_SECRET=your-generated-secret
+   NEXTAUTH_URL=http://localhost:3000
+   ```
 
-1. In Supabase, go to **Authentication > Providers**
-2. Ensure Email provider is enabled
-3. (Optional) Disable email confirmation for faster testing:
-   - Go to **Authentication > Email Templates**
-   - Or set `GOTRUE_MAILER_AUTOCONFIRM=true`
+3. **Connect Vercel Postgres:**
+   
+   Option A - Via Vercel Dashboard:
+   - Go to your project in Vercel Dashboard
+   - Navigate to Storage → Create Database → Postgres
+   - Connect it to your project
+   - Pull env vars: `vercel env pull .env.local`
+   
+   Option B - Via CLI:
+   ```bash
+   vercel link
+   vercel env pull .env.local
+   ```
 
-### 4. Environment Variables
+4. **Initialize the database:**
+   ```bash
+   npx prisma db push
+   ```
 
-Create `.env.local`:
+5. **Create initial admin user:**
+   ```bash
+   npx prisma studio
+   ```
+   Or use the signup page and manually set `is_admin = true` in the database.
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=your_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-```
+6. **Run locally:**
+   ```bash
+   npm run dev
+   ```
 
-### 5. Create First Admin User
+### Deployment
 
-1. Sign up through the app
-2. In Supabase SQL Editor, run:
+The app is deployed automatically to Vercel on push to the main branch.
+
+Live URL: https://bc-golf-chat.vercel.app
+
+## Database Schema
+
+- **profiles** - User accounts with admin/active flags
+- **channels** - Chat channels
+- **channel_members** - Channel membership
+- **messages** - Channel messages
+- **direct_messages** - Private messages between users
+- **push_subscriptions** - Web push notification subscriptions
+
+## API Routes
+
+- `POST /api/auth/signup` - Create account
+- `GET/POST /api/messages` - Channel messages
+- `GET/POST /api/direct-messages` - Direct messages
+- `GET/PATCH /api/admin/users` - User management (admin)
+- `GET/POST/DELETE /api/admin/channels` - Channel management (admin)
+- `POST/DELETE /api/admin/channel-members` - Member management (admin)
+- `POST/DELETE /api/push/subscribe` - Push notifications
+
+## Real-time Updates
+
+Instead of WebSockets, this app uses polling (every 3 seconds) for real-time message updates. This is simpler to deploy on serverless platforms like Vercel.
+
+## Creating the First Admin
+
+1. Sign up via the web interface
+2. Open Prisma Studio: `npx prisma studio`
+3. Find your user in the `profiles` table
+4. Set `is_admin` to `true`
+5. Refresh the app
+
+Alternatively, create a user directly in the database:
+
 ```sql
-UPDATE profiles SET is_admin = true WHERE email = 'your-email@example.com';
+INSERT INTO profiles (id, email, password, full_name, is_admin, is_active)
+VALUES (
+  gen_random_uuid(),
+  'admin@example.com',
+  '$2a$12$...',  -- bcrypt hash of password
+  'Admin User',
+  true,
+  true
+);
 ```
-
-### 6. Add Users to General Channel
-
-After users sign up, add them to the General channel:
-```sql
-INSERT INTO channel_members (channel_id, user_id)
-SELECT '00000000-0000-0000-0000-000000000001', id FROM profiles WHERE is_active = true;
-```
-
-Or use the Admin Panel to manage channel membership.
-
-## Local Development
-
-```bash
-npm install
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000)
-
-## Deployment to Vercel
-
-1. Push to GitHub
-2. Import project in Vercel
-3. Add environment variables in Vercel dashboard
-4. Deploy!
-
-## Admin Panel
-
-Admins can:
-- Activate/deactivate users
-- Promote users to admin
-- Create/delete channels
-- Manage channel membership
-
-Access at `/admin` (admin users only)
-
-## Mobile Installation (PWA)
-
-**iOS Safari:**
-1. Open the chat URL
-2. Tap Share button
-3. Tap "Add to Home Screen"
-
-**Android Chrome:**
-1. Open the chat URL
-2. Tap the install banner or Menu > "Install app"
-
-## Troubleshooting
-
-**Messages not appearing in real-time?**
-- Check Supabase Realtime is enabled for the tables
-- Verify your Supabase URL and keys are correct
-
-**Can't log in?**
-- Ensure email confirmation is disabled in Supabase Auth settings
-- Or check your email for confirmation link
-
-**Push notifications not working?**
-- Ensure you've granted notification permission
-- Check browser supports Push API
-- HTTPS is required (works on localhost for development)
 
 ## License
 
-Private - BC Golf Safaris Team Use Only
+MIT
