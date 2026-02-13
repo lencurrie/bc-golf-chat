@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { 
   Copy, Reply, Edit2, Trash2, Smile, MessageCircle, 
-  Mail, User, AtSign, Pin, Forward, Flag
+  Mail, User, AtSign, Pin
 } from 'lucide-react'
 
 interface MenuItem {

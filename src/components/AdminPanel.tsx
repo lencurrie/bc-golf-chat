@@ -269,7 +269,7 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
               {/* Info banner */}
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
                 <p className="text-sm text-blue-300">
-                  <strong>Inactive</strong> = account disabled (can't log in). Use this to remove access without deleting the user.
+                  <strong>Inactive</strong> = account disabled (cannot log in). Use this to remove access without deleting the user.
                 </p>
               </div>
 
