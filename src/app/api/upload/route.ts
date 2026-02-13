@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       // Create message with attachment
       const message = await prisma.message.create({
         data: {
-          content: `[Uploaded: ${file.name}]`,
+          content: '',
           channelId: targetId,
           senderId: session.user.id,
           attachments: {
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       // Direct message
       const message = await prisma.directMessage.create({
         data: {
-          content: `[Uploaded: ${file.name}]`,
+          content: '',
           senderId: session.user.id,
           recipientId: targetId,
           attachments: {
