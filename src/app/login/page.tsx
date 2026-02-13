@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { signIn } from 'next-auth/react'
-import { Loader2, MessageCircle } from 'lucide-react'
+import { Loader2, Sparkles } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -39,77 +39,92 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-[#1a1d21]">
+      {/* Background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-blue-500/5" />
+      
+      <div className="w-full max-w-sm relative">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-green-600 rounded-2xl mb-4">
-            <MessageCircle className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl mb-4 shadow-lg shadow-green-500/25">
+            <span className="text-3xl font-bold text-white">BC</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">BC Golf Safaris</h1>
-          <p className="text-gray-400 mt-1">Team Chat</p>
+          <h1 className="text-2xl font-bold text-white">Welcome back</h1>
+          <p className="text-gray-400 mt-1">Sign in to BC Golf Safaris Chat</p>
         </div>
 
         {/* Login Form */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-green-500 transition-colors"
-              placeholder="you@example.com"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-green-500 transition-colors"
-              placeholder="••••••••"
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-800 text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2 touch-target"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Signing in...
-              </>
-            ) : (
-              'Sign In'
+        <div className="bg-[#222529] rounded-2xl p-6 border border-gray-800 shadow-xl">
+          <form onSubmit={handleLogin} className="space-y-4">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl text-sm text-center">
+                {error}
+              </div>
             )}
-          </button>
-        </form>
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20 transition-all"
+                placeholder="you@example.com"
+                required
+                autoComplete="email"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20 transition-all"
+                placeholder="••••••••"
+                required
+                autoComplete="current-password"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:from-gray-700 disabled:to-gray-700 text-white font-semibold rounded-xl transition-all shadow-lg shadow-green-500/25 hover:shadow-green-500/40 disabled:shadow-none flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+          </form>
+        </div>
 
         <p className="text-center text-gray-400 mt-6 text-sm">
-          Don&apos;t have an account?{' '}
-          <Link href="/signup" className="text-green-400 hover:text-green-300">
-            Sign up
+          New to the team?{' '}
+          <Link href="/signup" className="text-green-400 hover:text-green-300 font-medium">
+            Create an account
           </Link>
         </p>
+
+        {/* Footer */}
+        <div className="mt-12 text-center">
+          <p className="text-xs text-gray-600 flex items-center justify-center gap-1">
+            <Sparkles className="w-3 h-3" />
+            BC Golf Safaris Team Chat
+          </p>
+        </div>
       </div>
     </div>
   )

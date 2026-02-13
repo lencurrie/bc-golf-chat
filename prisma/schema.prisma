@@ -12,23 +12,29 @@ datasource db {
 }
 
 model Profile {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String   // Hashed password
-  fullName  String?  @map("full_name")
-  avatarUrl String?  @map("avatar_url")
-  isAdmin   Boolean  @default(false) @map("is_admin")
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          String    @id @default(uuid())
+  email       String    @unique
+  password    String    // Hashed password
+  fullName    String?   @map("full_name")
+  avatarUrl   String?   @map("avatar_url")
+  isAdmin     Boolean   @default(false) @map("is_admin")
+  isActive    Boolean   @default(true) @map("is_active")
+  status      String?   // Custom status message
+  lastSeenAt  DateTime? @map("last_seen_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
   channelMemberships ChannelMember[]
-  createdChannels    Channel[]        @relation("ChannelCreator")
-  sentMessages       Message[]        @relation("MessageSender")
-  sentDMs            DirectMessage[]  @relation("DMSender")
-  receivedDMs        DirectMessage[]  @relation("DMRecipient")
+  createdChannels    Channel[]          @relation("ChannelCreator")
+  sentMessages       Message[]          @relation("MessageSender")
+  sentDMs            DirectMessage[]    @relation("DMSender")
+  receivedDMs        DirectMessage[]    @relation("DMRecipient")
   pushSubscriptions  PushSubscription[]
+  reactions          Reaction[]
+  dmReactions        DMReaction[]
+  typingIndicators   TypingIndicator[]
+  readReceipts       ReadReceipt[]
 
   @@map("profiles")
 }
@@ -42,9 +48,11 @@ model Channel {
   createdAt   DateTime @default(now()) @map("created_at")
 
   // Relations
-  createdBy Profile?        @relation("ChannelCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  members   ChannelMember[]
-  messages  Message[]
+  createdBy         Profile?          @relation("ChannelCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  members           ChannelMember[]
+  messages          Message[]
+  typingIndicators  TypingIndicator[]
+  readReceipts      ReadReceipt[]
 
   @@map("channels")
 }
@@ -65,15 +73,22 @@ model ChannelMember {
 }
 
 model Message {
-  id        String   @id @default(uuid())
-  content   String
-  channelId String   @map("channel_id")
-  senderId  String   @map("sender_id")
-  createdAt DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid())
+  content       String
+  channelId     String   @map("channel_id")
+  senderId      String   @map("sender_id")
+  replyToId     String?  @map("reply_to_id")
+  isEdited      Boolean  @default(false) @map("is_edited")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   // Relations
-  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  sender  Profile @relation("MessageSender", fields: [senderId], references: [id], onDelete: SetNull)
+  channel     Channel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sender      Profile       @relation("MessageSender", fields: [senderId], references: [id], onDelete: SetNull)
+  replyTo     Message?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies     Message[]     @relation("MessageReplies")
+  reactions   Reaction[]
+  attachments Attachment[]
 
   @@index([channelId])
   @@index([createdAt(sort: Desc)])
@@ -81,19 +96,116 @@ model Message {
 }
 
 model DirectMessage {
-  id          String   @id @default(uuid())
-  content     String
-  senderId    String   @map("sender_id")
-  recipientId String   @map("recipient_id")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid())
+  content       String
+  senderId      String   @map("sender_id")
+  recipientId   String   @map("recipient_id")
+  replyToId     String?  @map("reply_to_id")
+  isEdited      Boolean  @default(false) @map("is_edited")
+  isRead        Boolean  @default(false) @map("is_read")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   // Relations
-  sender    Profile @relation("DMSender", fields: [senderId], references: [id], onDelete: SetNull)
-  recipient Profile @relation("DMRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  sender      Profile           @relation("DMSender", fields: [senderId], references: [id], onDelete: SetNull)
+  recipient   Profile           @relation("DMRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  replyTo     DirectMessage?    @relation("DMReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies     DirectMessage[]   @relation("DMReplies")
+  reactions   DMReaction[]
+  attachments DMAttachment[]
 
   @@index([senderId, recipientId])
   @@index([createdAt(sort: Desc)])
   @@map("direct_messages")
+}
+
+model Reaction {
+  id        String   @id @default(uuid())
+  emoji     String
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@map("reactions")
+}
+
+model DMReaction {
+  id        String   @id @default(uuid())
+  emoji     String
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  message DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@map("dm_reactions")
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  filename  String
+  url       String
+  mimeType  String   @map("mime_type")
+  size      Int      // bytes
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("attachments")
+}
+
+model DMAttachment {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  filename  String
+  url       String
+  mimeType  String   @map("mime_type")
+  size      Int      // bytes
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  message DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("dm_attachments")
+}
+
+model TypingIndicator {
+  id        String   @id @default(uuid())
+  channelId String   @map("channel_id")
+  userId    String   @map("user_id")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@map("typing_indicators")
+}
+
+model ReadReceipt {
+  id             String   @id @default(uuid())
+  channelId      String   @map("channel_id")
+  userId         String   @map("user_id")
+  lastReadAt     DateTime @map("last_read_at")
+  lastMessageId  String?  @map("last_message_id")
+
+  // Relations
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@map("read_receipts")
 }
 
 model PushSubscription {

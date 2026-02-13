@@ -21,6 +21,8 @@ export default async function ChatPage() {
       avatarUrl: true,
       isAdmin: true,
       isActive: true,
+      status: true,
+      lastSeenAt: true,
       createdAt: true,
       updatedAt: true
     }
@@ -56,6 +58,8 @@ export default async function ChatPage() {
       avatarUrl: true,
       isAdmin: true,
       isActive: true,
+      status: true,
+      lastSeenAt: true,
       createdAt: true,
       updatedAt: true
     },
@@ -65,6 +69,7 @@ export default async function ChatPage() {
   // Convert dates to ISO strings for serialization
   const serializedProfile = {
     ...profile,
+    lastSeenAt: profile.lastSeenAt?.toISOString() || null,
     createdAt: profile.createdAt.toISOString(),
     updatedAt: profile.updatedAt.toISOString()
   }
@@ -76,6 +81,7 @@ export default async function ChatPage() {
 
   const serializedUsers = users.map(u => ({
     ...u,
+    lastSeenAt: u.lastSeenAt?.toISOString() || null,
     createdAt: u.createdAt.toISOString(),
     updatedAt: u.updatedAt.toISOString()
   }))

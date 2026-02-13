@@ -12,15 +12,20 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@emoji-mart/data": "^1.2.1",
+    "@emoji-mart/react": "^1.1.1",
     "@prisma/client": "^6.4.1",
     "@vercel/postgres": "^0.10.0",
     "bcryptjs": "^2.4.3",
+    "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "framer-motion": "^12.34.0",
     "lucide-react": "^0.564.0",
     "next": "14.2.35",
     "next-auth": "^4.24.11",
     "react": "^18",
     "react-dom": "^18",
+    "react-dropzone": "^15.0.0",
     "swr": "^2.3.2",
     "web-push": "^3.6.7"
   },

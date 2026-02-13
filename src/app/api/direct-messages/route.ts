@@ -43,6 +43,29 @@ export async function GET(request: Request) {
             fullName: true,
             avatarUrl: true
           }
+        },
+        reactions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+              }
+            }
+          }
+        },
+        attachments: true,
+        replyTo: {
+          include: {
+            sender: {
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+              }
+            }
+          }
         }
       },
       orderBy: { createdAt: 'asc' },
@@ -64,7 +87,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { recipientId, content } = await request.json()
+    const { recipientId, content, replyToId } = await request.json()
 
     if (!recipientId || !content) {
       return NextResponse.json({ error: 'Recipient ID and content required' }, { status: 400 })
@@ -74,7 +97,8 @@ export async function POST(request: Request) {
       data: {
         content,
         senderId: session.user.id,
-        recipientId
+        recipientId,
+        replyToId: replyToId || null,
       },
       include: {
         sender: {
@@ -92,6 +116,19 @@ export async function POST(request: Request) {
             fullName: true,
             avatarUrl: true
           }
+        },
+        reactions: true,
+        attachments: true,
+        replyTo: {
+          include: {
+            sender: {
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+              }
+            }
+          }
         }
       }
     })
@@ -99,6 +136,120 @@ export async function POST(request: Request) {
     return NextResponse.json({ message })
   } catch (error) {
     console.error('Send DM error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// PATCH - Edit direct message
+export async function PATCH(request: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { id, content } = await request.json()
+
+    if (!id || !content) {
+      return NextResponse.json({ error: 'Message ID and content required' }, { status: 400 })
+    }
+
+    // Verify ownership
+    const existing = await prisma.directMessage.findUnique({
+      where: { id }
+    })
+
+    if (!existing || existing.senderId !== session.user.id) {
+      return NextResponse.json({ error: 'Not authorized to edit this message' }, { status: 403 })
+    }
+
+    const message = await prisma.directMessage.update({
+      where: { id },
+      data: {
+        content,
+        isEdited: true,
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            avatarUrl: true
+          }
+        },
+        recipient: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            avatarUrl: true
+          }
+        },
+        reactions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+              }
+            }
+          }
+        },
+        attachments: true,
+        replyTo: {
+          include: {
+            sender: {
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+              }
+            }
+          }
+        }
+      }
+    })
+
+    return NextResponse.json({ message })
+  } catch (error) {
+    console.error('Edit DM error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// DELETE direct message
+export async function DELETE(request: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'Message ID required' }, { status: 400 })
+    }
+
+    // Verify ownership
+    const existing = await prisma.directMessage.findUnique({
+      where: { id }
+    })
+
+    if (!existing || existing.senderId !== session.user.id) {
+      return NextResponse.json({ error: 'Not authorized to delete this message' }, { status: 403 })
+    }
+
+    await prisma.directMessage.delete({
+      where: { id }
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Delete DM error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

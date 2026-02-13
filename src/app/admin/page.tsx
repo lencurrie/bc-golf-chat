@@ -21,6 +21,8 @@ export default async function AdminPage() {
       avatarUrl: true,
       isAdmin: true,
       isActive: true,
+      status: true,
+      lastSeenAt: true,
       createdAt: true,
       updatedAt: true
     }
@@ -39,6 +41,8 @@ export default async function AdminPage() {
       avatarUrl: true,
       isAdmin: true,
       isActive: true,
+      status: true,
+      lastSeenAt: true,
       createdAt: true,
       updatedAt: true
     },
@@ -56,12 +60,14 @@ export default async function AdminPage() {
   // Serialize dates
   const serializedProfile = {
     ...profile,
+    lastSeenAt: profile.lastSeenAt?.toISOString() || null,
     createdAt: profile.createdAt.toISOString(),
     updatedAt: profile.updatedAt.toISOString()
   }
 
   const serializedUsers = users.map(u => ({
     ...u,
+    lastSeenAt: u.lastSeenAt?.toISOString() || null,
     createdAt: u.createdAt.toISOString(),
     updatedAt: u.updatedAt.toISOString()
   }))
