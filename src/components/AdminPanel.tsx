@@ -266,6 +266,13 @@ export default function AdminPanel({ currentUser, users: initialUsers, channels:
               exit={{ opacity: 0, y: -10 }}
               className="space-y-4"
             >
+              {/* Info banner */}
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                <p className="text-sm text-blue-300">
+                  <strong>Inactive</strong> = account disabled (can't log in). Use this to remove access without deleting the user.
+                </p>
+              </div>
+
               {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />

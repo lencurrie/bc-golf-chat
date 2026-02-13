@@ -15,6 +15,9 @@ import FileUpload from './FileUpload'
 import MessageBubble from './MessageBubble'
 import MentionInput from './MentionInput'
 import TypingIndicator from './TypingIndicator'
+import ContextMenu, { getMessageMenuItems, getUserMenuItems } from './ContextMenu'
+import StatusPicker from './StatusPicker'
+import UserProfileModal from './UserProfileModal'
 
 interface ChatInterfaceProps {
   currentUser: Profile
@@ -55,6 +58,17 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
   const [typingUsers, setTypingUsers] = useState<Profile[]>([])
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
   const [unreadCounts] = useState<Map<string, number>>(new Map()) // For future unread tracking
+  
+  // Context menu and modal states
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    type: 'message' | 'user'
+    data: Message | DirectMessage | Profile
+  } | null>(null)
+  const [showStatusPicker, setShowStatusPicker] = useState(false)
+  const [profileModal, setProfileModal] = useState<Profile | null>(null)
+  const [userStatus, setUserStatus] = useState<string | null>(currentUser.status || null)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -367,6 +381,54 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
     await signOut({ callbackUrl: '/login' })
   }
 
+  // Context menu handlers
+  const handleMessageContextMenu = (e: React.MouseEvent, message: Message | DirectMessage) => {
+    e.preventDefault()
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      type: 'message',
+      data: message
+    })
+  }
+
+  const handleUserContextMenu = (e: React.MouseEvent, user: Profile) => {
+    e.preventDefault()
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      type: 'user',
+      data: user
+    })
+  }
+
+  const handleCopyMessage = (content: string) => {
+    navigator.clipboard.writeText(content)
+  }
+
+  const handleDMUser = (user: Profile) => {
+    setSelectedChat({
+      type: 'dm',
+      id: user.id,
+      name: user.fullName || user.email
+    })
+    setSidebarOpen(false)
+    setContextMenu(null)
+  }
+
+  const handleStatusChange = async (status: string | null) => {
+    try {
+      await fetch('/api/users/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      })
+      setUserStatus(status)
+    } catch (error) {
+      console.error('Failed to update status:', error)
+    }
+  }
+
   // Get user online status
   const isUserOnline = (userId: string) => onlineUsers.has(userId)
 
@@ -463,6 +525,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
                         id: user.id, 
                         name: user.fullName || user.email 
                       })}
+                      onContextMenu={(e) => handleUserContextMenu(e, user)}
                       className={`channel-item w-full ${
                         selectedChat?.type === 'dm' && selectedChat.id === user.id ? 'active' : ''
                       }`}
@@ -493,10 +556,16 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#1a1d21]" />
             </div>
-            <div className="flex-1 min-w-0">
+            <button
+              onClick={() => setShowStatusPicker(true)}
+              className="flex-1 min-w-0 text-left hover:bg-gray-800 rounded-md px-2 py-1 -mx-2 transition-colors"
+              title="Click to set status"
+            >
               <p className="text-sm font-medium text-white truncate">{currentUser.fullName || 'User'}</p>
-              <p className="text-xs text-gray-400">Active</p>
-            </div>
+              <p className="text-xs text-gray-400 truncate">
+                {userStatus || 'Set a status'}
+              </p>
+            </button>
             <div className="flex items-center gap-1">
               {currentUser.isAdmin && (
                 <a
@@ -585,6 +654,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
                         setSelectedChat({ type: 'dm', id: user.id, name: user.fullName || user.email })
                         setSidebarOpen(false)
                       }}
+                      onContextMenu={(e) => handleUserContextMenu(e, user)}
                       className={`channel-item w-full ${
                         selectedChat?.type === 'dm' && selectedChat.id === user.id ? 'active' : ''
                       }`}
@@ -719,28 +789,32 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
                   differenceInMinutes(new Date(msg.createdAt), new Date(prevMsg.createdAt)) > 5
 
                 return (
-                  <MessageBubble
+                  <div
                     key={msg.id}
-                    message={msg}
-                    currentUserId={currentUser.id}
-                    showAvatar={showAvatar}
-                    onReaction={handleReaction}
-                    onReply={() => setReplyingTo(msg)}
-                    onEdit={() => {
-                      setEditingMessage(msg.id)
-                      setEditContent(msg.content)
-                    }}
-                    onDelete={() => handleDeleteMessage(msg.id)}
-                    isEditing={editingMessage === msg.id}
-                    editContent={editContent}
-                    onEditChange={setEditContent}
-                    onEditSave={() => handleEditMessage(msg.id)}
-                    onEditCancel={() => {
-                      setEditingMessage(null)
-                      setEditContent('')
-                    }}
-                    allUsers={allUsers}
-                  />
+                    onContextMenu={(e) => handleMessageContextMenu(e, msg)}
+                  >
+                    <MessageBubble
+                      message={msg}
+                      currentUserId={currentUser.id}
+                      showAvatar={showAvatar}
+                      onReaction={handleReaction}
+                      onReply={() => setReplyingTo(msg)}
+                      onEdit={() => {
+                        setEditingMessage(msg.id)
+                        setEditContent(msg.content)
+                      }}
+                      onDelete={() => handleDeleteMessage(msg.id)}
+                      isEditing={editingMessage === msg.id}
+                      editContent={editContent}
+                      onEditChange={setEditContent}
+                      onEditSave={() => handleEditMessage(msg.id)}
+                      onEditCancel={() => {
+                        setEditingMessage(null)
+                        setEditContent('')
+                      }}
+                      allUsers={allUsers}
+                    />
+                  </div>
                 )
               })}
               <div ref={messagesEndRef} />
@@ -855,6 +929,85 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
           </div>
         </div>
       </main>
+
+      {/* Context Menu */}
+      <AnimatePresence>
+        {contextMenu && contextMenu.type === 'message' && (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={getMessageMenuItems({
+              onCopy: () => handleCopyMessage((contextMenu.data as Message | DirectMessage).content),
+              onReply: () => {
+                setReplyingTo(contextMenu.data as Message | DirectMessage)
+                inputRef.current?.focus()
+              },
+              onReact: () => {
+                // TODO: Show emoji picker for reaction
+              },
+              onEdit: () => {
+                const msg = contextMenu.data as Message | DirectMessage
+                setEditingMessage(msg.id)
+                setEditContent(msg.content)
+              },
+              onDelete: () => handleDeleteMessage((contextMenu.data as Message | DirectMessage).id),
+              isOwn: (contextMenu.data as Message | DirectMessage).senderId === currentUser.id,
+            })}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+        
+        {contextMenu && contextMenu.type === 'user' && (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={getUserMenuItems({
+              user: contextMenu.data as Profile,
+              currentUserId: currentUser.id,
+              onDM: () => handleDMUser(contextMenu.data as Profile),
+              onViewProfile: () => setProfileModal(contextMenu.data as Profile),
+              onCopyEmail: () => navigator.clipboard.writeText((contextMenu.data as Profile).email),
+              onMention: () => {
+                const user = contextMenu.data as Profile
+                const mention = `@${user.fullName || user.email.split('@')[0]} `
+                setNewMessage(prev => prev + mention)
+                inputRef.current?.focus()
+              },
+            })}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Profile Modal */}
+      <AnimatePresence>
+        {profileModal && (
+          <UserProfileModal
+            user={profileModal}
+            currentUserId={currentUser.id}
+            onClose={() => setProfileModal(null)}
+            onDM={() => handleDMUser(profileModal)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Status Picker */}
+      <AnimatePresence>
+        {showStatusPicker && (
+          <div className="fixed inset-0 z-40" onClick={() => setShowStatusPicker(false)}>
+            <div 
+              className="absolute bottom-20 left-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <StatusPicker
+                currentStatus={userStatus}
+                onStatusChange={handleStatusChange}
+                onClose={() => setShowStatusPicker(false)}
+              />
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
