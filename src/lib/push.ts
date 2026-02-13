@@ -1,12 +1,33 @@
 import webpush from 'web-push'
 import prisma from './db'
 
-// Configure VAPID keys for web-push
-webpush.setVapidDetails(
-  'mailto:your-email@example.com', // Replace with your email
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-)
+// Lazy initialization of VAPID details
+let vapidConfigured = false
+
+function ensureVapidConfigured() {
+  if (vapidConfigured) return true
+  
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  const privateKey = process.env.VAPID_PRIVATE_KEY
+  
+  if (!publicKey || !privateKey) {
+    console.warn('VAPID keys not configured - push notifications disabled')
+    return false
+  }
+  
+  try {
+    webpush.setVapidDetails(
+      'mailto:support@bcgolfsafaris.com',
+      publicKey,
+      privateKey
+    )
+    vapidConfigured = true
+    return true
+  } catch (error) {
+    console.error('Failed to configure VAPID:', error)
+    return false
+  }
+}
 
 interface PushNotificationPayload {
   title: string
@@ -23,6 +44,10 @@ export async function sendNotificationToUsers(
   url?: string,
   tag?: string
 ) {
+  if (!ensureVapidConfigured()) {
+    return false
+  }
+  
   try {
     const subscriptions = await prisma.pushSubscription.findMany({
       where: { userId: { in: userIds } }
