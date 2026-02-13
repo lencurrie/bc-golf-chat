@@ -161,7 +161,7 @@ export async function POST(request: Request) {
           memberIds,
           `New message in #${message.channel.name}`,
           `${senderName}: ${content}`,
-          `/chat/channels/${channelId}`,
+          `/chat`,
           `channel-${channelId}`
         )
       }

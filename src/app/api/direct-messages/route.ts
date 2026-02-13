@@ -141,7 +141,7 @@ export async function POST(request: Request) {
         [recipientId],
         `Direct message from ${senderName}`,
         content,
-        `/chat/direct/${session.user.id}`,
+        `/chat`,
         `dm-${session.user.id}`
       )
     } catch (error) {
