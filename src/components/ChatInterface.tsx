@@ -79,6 +79,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
   const [profileModal, setProfileModal] = useState<Profile | null>(null)
   const [userStatus, setUserStatus] = useState<string | null>(currentUser.status || null)
   const [showPinnedMessages, setShowPinnedMessages] = useState(false)
+  const [totalUnread, setTotalUnread] = useState(0)
   const [pinnedMessageCount, setPinnedMessageCount] = useState(0)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -136,6 +137,17 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
     const interval = setInterval(loadUnreadCounts, 30000) // Every 30 seconds
     return () => clearInterval(interval)
   }, [loadUnreadCounts])
+
+  // Clear unread count and reset title when window gains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      setTotalUnread(0)
+      document.title = 'BC Golf Safaris Chat'
+    }
+    
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [])
 
   // Update online status
   useEffect(() => {
@@ -362,8 +374,33 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
   }, [setupPushNotifications])
 
   const showNotification = (title: string, body: string) => {
+    // Play notification sound
+    try {
+      const audio = new Audio('/notification.mp3')
+      audio.volume = 0.5
+      audio.play().catch(() => {})
+    } catch (e) {
+      console.log('Could not play notification sound')
+    }
+    
+    // Update page title with unread indicator
+    if (!document.hasFocus()) {
+      const currentTitle = document.title.replace(/^\(\d+\)\s*/, '')
+      setTotalUnread(prev => {
+        const newCount = prev + 1
+        document.title = `(${newCount}) ${currentTitle}`
+        return newCount
+      })
+    }
+    
+    // Show browser notification
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(title, { body, icon: '/icon-192.png' })
+      new Notification(title, { 
+        body, 
+        icon: '/icon-192.png',
+        tag: 'bc-golf-chat',
+        requireInteraction: false
+      })
     }
   }
 
