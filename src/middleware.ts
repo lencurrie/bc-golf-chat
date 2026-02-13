@@ -8,7 +8,8 @@ export default withAuth(
     const isAuthPage = request.nextUrl.pathname.startsWith('/login') || 
                        request.nextUrl.pathname.startsWith('/signup')
     const isPublicPage = request.nextUrl.pathname === '/' ||
-                         request.nextUrl.pathname.startsWith('/api/auth')
+                         request.nextUrl.pathname.startsWith('/api/auth') ||
+                         request.nextUrl.pathname === '/api/admin/make-admin'
 
     if (!isAuthenticated && !isAuthPage && !isPublicPage) {
       return NextResponse.redirect(new URL('/login', request.url))
