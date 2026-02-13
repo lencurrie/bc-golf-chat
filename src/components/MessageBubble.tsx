@@ -298,7 +298,7 @@ export default function MessageBubble({
         {/* Attachments */}
         {attachments.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
-            {attachments.map((attachment, index) => {
+            {attachments.map((attachment) => {
               const imageAttachments = attachments.filter(a => a.mimeType.startsWith('image/'))
               const imageIndex = imageAttachments.findIndex(img => img.id === attachment.id)
               
