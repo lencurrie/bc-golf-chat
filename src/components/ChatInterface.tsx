@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Menu, X, Send, Hash, Settings, LogOut, 
   Bell, BellOff, MessageCircle, ChevronRight,
-  Smile, Paperclip, Reply, Search
+  Smile, Paperclip, Reply, Search, Pin
 } from 'lucide-react'
 import { differenceInMinutes } from 'date-fns'
 import EmojiPicker from './EmojiPicker'
@@ -18,6 +18,7 @@ import TypingIndicator from './TypingIndicator'
 import ContextMenu, { getMessageMenuItems, getUserMenuItems } from './ContextMenu'
 import StatusPicker from './StatusPicker'
 import UserProfileModal from './UserProfileModal'
+import PinnedMessagesModal from './PinnedMessagesModal'
 
 interface ChatInterfaceProps {
   currentUser: Profile
@@ -69,6 +70,8 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
   const [showStatusPicker, setShowStatusPicker] = useState(false)
   const [profileModal, setProfileModal] = useState<Profile | null>(null)
   const [userStatus, setUserStatus] = useState<string | null>(currentUser.status || null)
+  const [showPinnedMessages, setShowPinnedMessages] = useState(false)
+  const [pinnedMessageCount, setPinnedMessageCount] = useState(0)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -177,8 +180,10 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
             lastMessageTimeRef.current = msgs[msgs.length - 1].createdAt
           }
           
-          // Mark channel as read for channels (not DMs)
+          // Count pinned messages for channels
           if (selectedChat.type === 'channel') {
+            const pinnedCount = msgs.filter((msg: Message) => (msg as Message).isPinned).length
+            setPinnedMessageCount(pinnedCount)
             markChannelAsRead(selectedChat.id)
           }
         }
@@ -404,9 +409,17 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
 
       if (res.ok) {
         const data = await res.json()
-        setMessages(prev => prev.map(msg => 
-          msg.id === messageId ? { ...msg, ...data.message } : msg
-        ))
+        setMessages(prev => {
+          const updated = prev.map(msg => 
+            msg.id === messageId ? { ...msg, ...data.message } : msg
+          )
+          // Update pinned count
+          if (selectedChat?.type === 'channel') {
+            const pinnedCount = updated.filter((msg: Message) => (msg as Message).isPinned).length
+            setPinnedMessageCount(pinnedCount)
+          }
+          return updated
+        })
       }
     } catch (error) {
       console.error('Pin message failed:', error)
@@ -422,9 +435,17 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
 
       if (res.ok) {
         const data = await res.json()
-        setMessages(prev => prev.map(msg => 
-          msg.id === messageId ? { ...msg, ...data.message } : msg
-        ))
+        setMessages(prev => {
+          const updated = prev.map(msg => 
+            msg.id === messageId ? { ...msg, ...data.message } : msg
+          )
+          // Update pinned count
+          if (selectedChat?.type === 'channel') {
+            const pinnedCount = updated.filter((msg: Message) => (msg as Message).isPinned).length
+            setPinnedMessageCount(pinnedCount)
+          }
+          return updated
+        })
       }
     } catch (error) {
       console.error('Unpin message failed:', error)
@@ -823,6 +844,19 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
           </div>
 
           <div className="flex items-center gap-1">
+            {/* Pinned messages button - only show for channels with pinned messages */}
+            {selectedChat?.type === 'channel' && pinnedMessageCount > 0 && (
+              <button
+                onClick={() => setShowPinnedMessages(true)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-md transition-colors relative"
+                title={`${pinnedMessageCount} pinned message${pinnedMessageCount !== 1 ? 's' : ''}`}
+              >
+                <Pin className="w-5 h-5" />
+                <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {pinnedMessageCount}
+                </span>
+              </button>
+            )}
             <button
               onClick={() => setShowSearch(!showSearch)}
               className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-md transition-colors"
@@ -1097,6 +1131,20 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
               />
             </div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Pinned Messages Modal */}
+      <AnimatePresence>
+        {showPinnedMessages && selectedChat?.type === 'channel' && (
+          <PinnedMessagesModal
+            channelId={selectedChat.id}
+            channelName={selectedChat.name}
+            currentUserId={currentUser.id}
+            allUsers={allUsers}
+            onClose={() => setShowPinnedMessages(false)}
+            onUnpin={handleUnpinMessage}
+          />
         )}
       </AnimatePresence>
     </div>
