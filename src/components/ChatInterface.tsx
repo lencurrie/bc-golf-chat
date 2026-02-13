@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Menu, X, Send, Hash, Settings, LogOut, 
   Bell, BellOff, MessageCircle, ChevronRight,
-  Smile, Paperclip, Reply, Search, Pin
+  Smile, Paperclip, Reply, Search, Pin, Upload
 } from 'lucide-react'
 import { differenceInMinutes } from 'date-fns'
 import EmojiPicker from './EmojiPicker'
@@ -50,6 +50,8 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showFileUpload, setShowFileUpload] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [replyingTo, setReplyingTo] = useState<Message | DirectMessage | null>(null)
   const [editingMessage, setEditingMessage] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
@@ -559,6 +561,125 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
     }
   }
 
+  // File validation
+  const validateFile = (file: File): string | null => {
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      return 'File size must be less than 5MB'
+    }
+
+    // Check file type
+    const allowedTypes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+      'application/pdf',
+      'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain', 'text/csv'
+    ]
+
+    if (!allowedTypes.includes(file.type)) {
+      return 'File type not supported. Please upload images, PDFs, documents, or text files.'
+    }
+
+    return null
+  }
+
+  // Handle drag events
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setDragActive(true)
+    }
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // Only hide drag indicator if we're leaving the main container
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX
+    const y = e.clientY
+    
+    if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+      setDragActive(false)
+    }
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+
+    if (!selectedChat) return
+
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length === 0) return
+
+    // Validate files
+    const validFiles: File[] = []
+    const errors: string[] = []
+
+    files.forEach(file => {
+      const error = validateFile(file)
+      if (error) {
+        errors.push(`${file.name}: ${error}`)
+      } else {
+        validFiles.push(file)
+      }
+    })
+
+    // Show errors if any
+    if (errors.length > 0) {
+      // For now just console.error, in real app you'd show toast/notification
+      console.error('File validation errors:', errors.join('\n'))
+      alert('Some files couldn\'t be uploaded:\n' + errors.join('\n'))
+    }
+
+    if (validFiles.length > 0) {
+      setPendingFiles(validFiles)
+      setShowFileUpload(true)
+    }
+  }, [selectedChat])
+
+  // Handle paste events for images
+  const handlePaste = useCallback((e: ClipboardEvent) => {
+    if (!selectedChat) return
+
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    const files: File[] = []
+    
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile()
+        if (file) {
+          const error = validateFile(file)
+          if (error) {
+            alert(`Pasted image: ${error}`)
+            return
+          }
+          files.push(file)
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      setPendingFiles(files)
+      setShowFileUpload(true)
+    }
+  }, [selectedChat])
+
+  // Add global paste event listener
+  useEffect(() => {
+    document.addEventListener('paste', handlePaste)
+    return () => {
+      document.removeEventListener('paste', handlePaste)
+    }
+  }, [handlePaste])
+
   // Handle file upload
   const handleFileUpload = async (file: File) => {
     if (!selectedChat) return
@@ -922,7 +1043,31 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
       </AnimatePresence>
 
       {/* Main chat area */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main 
+        className="flex-1 flex flex-col min-w-0 relative"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Drag overlay */}
+        <AnimatePresence>
+          {dragActive && selectedChat && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-blue-500/20 border-4 border-dashed border-blue-400 rounded-lg z-30 flex items-center justify-center"
+            >
+              <div className="bg-gray-900/90 backdrop-blur-sm rounded-lg p-8 text-center">
+                <Upload className="w-16 h-16 mx-auto mb-4 text-blue-400" />
+                <h3 className="text-xl font-semibold text-white mb-2">Drop files here</h3>
+                <p className="text-gray-300">Upload images, documents, or other files to share</p>
+                <p className="text-sm text-gray-400 mt-2">Max 5MB per file</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Chat header */}
         <header className="h-14 px-4 flex items-center justify-between bg-[#222529] border-b border-gray-800 shrink-0">
           <div className="flex items-center gap-3">
@@ -1105,7 +1250,14 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
               {showFileUpload && (
                 <FileUpload 
                   onUpload={handleFileUpload}
-                  onClose={() => setShowFileUpload(false)}
+                  onClose={() => {
+                    setShowFileUpload(false)
+                    setPendingFiles([])
+                  }}
+                  pendingFiles={pendingFiles}
+                  onRemoveFile={(index: number) => {
+                    setPendingFiles(prev => prev.filter((_, i) => i !== index))
+                  }}
                 />
               )}
             </AnimatePresence>
@@ -1113,7 +1265,10 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
             <div className="flex items-end gap-2 p-2">
               {/* Attach button */}
               <button
-                onClick={() => setShowFileUpload(!showFileUpload)}
+                onClick={() => {
+                  setPendingFiles([])
+                  setShowFileUpload(!showFileUpload)
+                }}
                 className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-md transition-colors"
                 disabled={!selectedChat}
               >

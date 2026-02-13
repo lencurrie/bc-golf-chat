@@ -20,9 +20,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'File, type, and targetId required' }, { status: 400 })
     }
 
-    // Check file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File too large (max 10MB)' }, { status: 400 })
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File too large (max 5MB)' }, { status: 400 })
     }
 
     // Convert file to base64 data URL
