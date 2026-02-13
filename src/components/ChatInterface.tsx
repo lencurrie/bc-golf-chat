@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { signOut } from 'next-auth/react'
-import { Profile, Channel, Message, DirectMessage } from '@/types/database'
+import { Profile, Channel, Message, DirectMessage, Attachment } from '@/types/database'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Menu, X, Send, Hash, Settings, LogOut, 
@@ -19,6 +19,7 @@ import ContextMenu, { getMessageMenuItems, getUserMenuItems } from './ContextMen
 import StatusPicker from './StatusPicker'
 import UserProfileModal from './UserProfileModal'
 import PinnedMessagesModal from './PinnedMessagesModal'
+import ImageLightbox from './ImageLightbox'
 
 interface ChatInterfaceProps {
   currentUser: Profile
@@ -56,6 +57,11 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
   // searchQuery can be used for future search feature
   const [channelsExpanded, setChannelsExpanded] = useState(true)
   const [dmsExpanded, setDmsExpanded] = useState(true)
+  
+  // Image lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImages, setLightboxImages] = useState<Attachment[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
   const [typingUsers, setTypingUsers] = useState<Profile[]>([])
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map())
@@ -442,6 +448,13 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
       console.error('Reaction failed:', error)
     }
   }
+
+  // Handle image click for lightbox
+  const handleImageClick = useCallback((images: Attachment[], index: number) => {
+    setLightboxImages(images)
+    setLightboxIndex(index)
+    setLightboxOpen(true)
+  }, [])
 
   // Delete message
   const handleDeleteMessage = async (messageId: string) => {
@@ -1039,6 +1052,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
                         setEditContent('')
                       }}
                       allUsers={allUsers}
+                      onImageClick={handleImageClick}
                     />
                   </div>
                 )
@@ -1248,6 +1262,14 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
           />
         )}
       </AnimatePresence>
+
+      {/* Image Lightbox */}
+      <ImageLightbox
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        images={lightboxImages}
+        initialIndex={lightboxIndex}
+      />
     </div>
   )
 }

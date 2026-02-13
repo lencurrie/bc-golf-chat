@@ -26,6 +26,7 @@ interface MessageBubbleProps {
   onEditSave: () => void
   onEditCancel: () => void
   allUsers: Profile[]
+  onImageClick?: (images: Attachment[], index: number) => void
 }
 
 export default function MessageBubble({
@@ -44,6 +45,7 @@ export default function MessageBubble({
   onEditSave,
   onEditCancel,
   allUsers,
+  onImageClick,
 }: MessageBubbleProps) {
   const [showActions, setShowActions] = useState(false)
   const [showReactions, setShowReactions] = useState(false)
@@ -296,9 +298,21 @@ export default function MessageBubble({
         {/* Attachments */}
         {attachments.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
-            {attachments.map((attachment) => (
-              <AttachmentPreview key={attachment.id} attachment={attachment} />
-            ))}
+            {attachments.map((attachment, index) => {
+              const imageAttachments = attachments.filter(a => a.mimeType.startsWith('image/'))
+              const imageIndex = imageAttachments.findIndex(img => img.id === attachment.id)
+              
+              return (
+                <AttachmentPreview 
+                  key={attachment.id} 
+                  attachment={attachment}
+                  onImageClick={attachment.mimeType.startsWith('image/') && onImageClick ? 
+                    () => onImageClick(imageAttachments, imageIndex) : 
+                    undefined
+                  }
+                />
+              )
+            })}
           </div>
         )}
 
@@ -411,25 +425,48 @@ export default function MessageBubble({
 }
 
 // Attachment preview component
-function AttachmentPreview({ attachment }: { attachment: Attachment }) {
+function AttachmentPreview({ 
+  attachment, 
+  onImageClick 
+}: { 
+  attachment: Attachment
+  onImageClick?: () => void 
+}) {
   const isImage = attachment.mimeType.startsWith('image/')
 
   if (isImage) {
-    return (
-      <a
-        href={attachment.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block max-w-sm rounded-lg overflow-hidden hover:opacity-90 transition-opacity"
-      >
-        <img
-          src={attachment.url}
-          alt={attachment.filename}
-          className="max-h-60 object-contain bg-gray-900"
-          loading="lazy"
-        />
-      </a>
-    )
+    if (onImageClick) {
+      return (
+        <button
+          onClick={onImageClick}
+          className="block max-w-sm rounded-lg overflow-hidden hover:opacity-90 transition-opacity cursor-pointer"
+        >
+          <img
+            src={attachment.url}
+            alt={attachment.filename}
+            className="max-h-60 object-contain bg-gray-900"
+            loading="lazy"
+          />
+        </button>
+      )
+    } else {
+      // Fallback to original behavior if no click handler
+      return (
+        <a
+          href={attachment.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block max-w-sm rounded-lg overflow-hidden hover:opacity-90 transition-opacity"
+        >
+          <img
+            src={attachment.url}
+            alt={attachment.filename}
+            className="max-h-60 object-contain bg-gray-900"
+            loading="lazy"
+          />
+        </a>
+      )
+    }
   }
 
   return (
