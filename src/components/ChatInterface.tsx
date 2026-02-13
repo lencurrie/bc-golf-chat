@@ -248,6 +248,9 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
         if (onlineRes.ok) {
           setOnlineUsers(new Set(onlineData.userIds || []))
         }
+
+        // Update unread counts for other channels
+        loadUnreadCounts()
       } catch (error) {
         console.error('Poll error:', error)
       }
@@ -606,7 +609,9 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
                       <Hash className="w-4 h-4 opacity-70" />
                       <span className="truncate text-sm">{channel.name}</span>
                       {(unreadCounts.get(channel.id) ?? 0) > 0 && (
-                        <span className="unread-badge ml-auto">{unreadCounts.get(channel.id)}</span>
+                        <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                          {unreadCounts.get(channel.id)}
+                        </span>
                       )}
                     </button>
                   ))}
@@ -756,6 +761,11 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
                     >
                       <Hash className="w-5 h-5" />
                       <span className="truncate">{channel.name}</span>
+                      {(unreadCounts.get(channel.id) ?? 0) > 0 && (
+                        <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                          {unreadCounts.get(channel.id)}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
