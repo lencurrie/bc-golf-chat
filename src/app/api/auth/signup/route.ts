@@ -28,13 +28,17 @@ export async function POST(request: Request) {
     // Hash password
     const hashedPassword = await hash(password, 12)
 
+    // Check if this is the first user (make them admin)
+    const userCount = await prisma.profile.count()
+    const isFirstUser = userCount === 0
+
     // Create user
     const user = await prisma.profile.create({
       data: {
         email,
         password: hashedPassword,
         fullName: fullName || null,
-        isAdmin: false,
+        isAdmin: isFirstUser, // First user becomes admin
         isActive: true
       }
     })
