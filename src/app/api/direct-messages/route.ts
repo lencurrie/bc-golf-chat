@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/db'
+import { sendNotificationToUsers } from '@/lib/push'
 
 // GET direct messages with a user
 export async function GET(request: Request) {
@@ -132,6 +133,21 @@ export async function POST(request: Request) {
         }
       }
     })
+
+    // Send push notification to recipient
+    try {
+      const senderName = message.sender.fullName || message.sender.email
+      await sendNotificationToUsers(
+        [recipientId],
+        `Direct message from ${senderName}`,
+        content,
+        `/chat/direct/${session.user.id}`,
+        `dm-${session.user.id}`
+      )
+    } catch (error) {
+      console.error('Failed to send DM push notification:', error)
+      // Don't fail the request if notification fails
+    }
 
     return NextResponse.json({ message })
   } catch (error) {

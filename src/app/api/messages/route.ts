@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import prisma from '@/lib/db'
+import { sendNotificationToUsers } from '@/lib/push'
 
 // GET messages for a channel
 export async function GET(request: Request) {
@@ -134,9 +135,40 @@ export async function POST(request: Request) {
               }
             }
           }
+        },
+        channel: {
+          select: {
+            name: true
+          }
         }
       }
     })
+
+    // Send push notifications to all channel members except the sender
+    try {
+      const channelMembers = await prisma.channelMember.findMany({
+        where: {
+          channelId,
+          userId: { not: session.user.id } // Exclude the sender
+        }
+      })
+
+      const memberIds = channelMembers.map(member => member.userId)
+      
+      if (memberIds.length > 0) {
+        const senderName = message.sender.fullName || message.sender.email
+        await sendNotificationToUsers(
+          memberIds,
+          `New message in #${message.channel.name}`,
+          `${senderName}: ${content}`,
+          `/chat/channels/${channelId}`,
+          `channel-${channelId}`
+        )
+      }
+    } catch (error) {
+      console.error('Failed to send push notifications:', error)
+      // Don't fail the request if notifications fail
+    }
 
     return NextResponse.json({ message })
   } catch (error) {

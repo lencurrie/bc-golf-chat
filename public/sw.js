@@ -1,81 +1,51 @@
-// BC Golf Safaris Team Chat - Service Worker
+// Service Worker for Web Push Notifications
 
+// Cache name for the app
 const CACHE_NAME = 'bc-golf-chat-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/chat',
-  '/login',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/manifest.json'
-];
 
-// Install event - cache static assets
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
+// Install event
+self.addEventListener('install', event => {
+  console.log('Service Worker installing...');
   self.skipWaiting();
 });
 
-// Activate event - clean up old caches
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      );
-    })
-  );
-  self.clients.claim();
+// Activate event
+self.addEventListener('activate', event => {
+  console.log('Service Worker activating...');
+  event.waitUntil(self.clients.claim());
 });
 
-// Fetch event - network first, fallback to cache
-self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests
-  if (event.request.method !== 'GET') return;
-  
-  // Skip Supabase API requests
-  if (event.request.url.includes('supabase.co')) return;
+// Push event - handle incoming push notifications
+self.addEventListener('push', event => {
+  console.log('Push event received:', event);
 
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Clone response to store in cache
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseClone);
-        });
-        return response;
-      })
-      .catch(() => {
-        // Network failed, try cache
-        return caches.match(event.request);
-      })
-  );
-});
+  let data = {};
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: 'BC Golf Chat', body: event.data.text() || 'New message received' };
+    }
+  }
 
-// Push notification event
-self.addEventListener('push', (event) => {
-  if (!event.data) return;
-
-  const data = event.data.json();
   const options = {
-    body: data.body || 'New message',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    vibrate: [100, 50, 100],
-    data: {
-      url: data.url || '/chat'
-    },
+    body: data.body || 'New message received',
+    icon: '/icon-192x192.png',
+    badge: '/badge-72x72.png',
+    tag: data.tag || 'bc-golf-chat',
+    data: data.url || '/',
     actions: [
-      { action: 'open', title: 'Open' },
-      { action: 'close', title: 'Dismiss' }
-    ]
+      {
+        action: 'open',
+        title: 'Open Chat'
+      },
+      {
+        action: 'close',
+        title: 'Close'
+      }
+    ],
+    requireInteraction: false,
+    silent: false
   };
 
   event.waitUntil(
@@ -84,24 +54,74 @@ self.addEventListener('push', (event) => {
 });
 
 // Notification click event
-self.addEventListener('notificationclick', (event) => {
+self.addEventListener('notificationclick', event => {
+  console.log('Notification clicked:', event);
   event.notification.close();
 
-  if (event.action === 'close') return;
+  if (event.action === 'close') {
+    return;
+  }
 
+  // Focus on existing tab or open new one
+  const url = event.notification.data || '/';
+  
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        // If a window is already open, focus it
-        for (const client of clientList) {
-          if (client.url.includes('/chat') && 'focus' in client) {
-            return client.focus();
+    self.clients.matchAll({ type: 'window' }).then(clientList => {
+      // Check if there's already a window/tab open with the target URL
+      for (const client of clientList) {
+        if (client.url.includes(url) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      
+      // If no existing window/tab, open a new one
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(url);
+      }
+    })
+  );
+});
+
+// Background sync (optional - for offline message queue)
+self.addEventListener('sync', event => {
+  console.log('Background sync event:', event.tag);
+  
+  if (event.tag === 'background-sync') {
+    event.waitUntil(
+      // Handle background sync logic here if needed
+      Promise.resolve()
+    );
+  }
+});
+
+// Fetch event (basic caching strategy)
+self.addEventListener('fetch', event => {
+  // Only cache GET requests
+  if (event.request.method !== 'GET') return;
+  
+  // Skip non-HTTP(S) requests
+  if (!event.request.url.startsWith('http')) return;
+  
+  event.respondWith(
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.match(event.request).then(response => {
+        if (response) {
+          return response;
+        }
+        
+        return fetch(event.request).then(fetchResponse => {
+          // Don't cache if it's not a valid response
+          if (!fetchResponse || fetchResponse.status !== 200 || fetchResponse.type !== 'basic') {
+            return fetchResponse;
           }
-        }
-        // Otherwise open a new window
-        if (clients.openWindow) {
-          return clients.openWindow(event.notification.data.url || '/chat');
-        }
-      })
+          
+          // Clone the response for caching
+          const responseToCache = fetchResponse.clone();
+          cache.put(event.request, responseToCache);
+          
+          return fetchResponse;
+        });
+      });
+    })
   );
 });

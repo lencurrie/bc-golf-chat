@@ -260,13 +260,98 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
     return () => clearInterval(interval)
   }, [selectedChat, currentUser.id, notificationsEnabled])
 
-  // Request notification permission
+  // Request notification permission and setup push notifications
   const requestNotificationPermission = async () => {
-    if ('Notification' in window) {
+    if (!('Notification' in window)) {
+      console.warn('This browser does not support notifications')
+      return
+    }
+
+    if (!('serviceWorker' in navigator)) {
+      console.warn('This browser does not support service workers')
+      return
+    }
+
+    try {
       const permission = await Notification.requestPermission()
       setNotificationsEnabled(permission === 'granted')
+
+      if (permission === 'granted') {
+        await setupPushNotifications()
+      }
+    } catch (error) {
+      console.error('Failed to request notification permission:', error)
     }
   }
+
+  // Setup push notifications
+  const setupPushNotifications = useCallback(async () => {
+    try {
+      // Wait for service worker to be ready
+      const registration = await navigator.serviceWorker.ready
+
+      // Check if already subscribed
+      const existingSubscription = await registration.pushManager.getSubscription()
+      if (existingSubscription) {
+        console.log('Already subscribed to push notifications')
+        return
+      }
+
+      // Subscribe to push notifications
+      const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!publicVapidKey) {
+        console.error('VAPID public key not found')
+        return
+      }
+
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+      })
+
+      console.log('Push subscription:', subscription)
+
+      // Send subscription to server
+      const response = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subscription)
+      })
+
+      if (response.ok) {
+        console.log('Push subscription sent to server successfully')
+      } else {
+        console.error('Failed to send subscription to server')
+      }
+    } catch (error) {
+      console.error('Failed to setup push notifications:', error)
+    }
+  }, [])
+
+  // Convert VAPID public key
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4)
+    const base64 = (base64String + padding)
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+
+    const rawData = window.atob(base64)
+    const outputArray = new Uint8Array(rawData.length)
+
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i)
+    }
+    return outputArray
+  }
+
+  // Check notification permission and setup push on mount
+  useEffect(() => {
+    // Check if notifications are already granted
+    if ('Notification' in window && Notification.permission === 'granted') {
+      setNotificationsEnabled(true)
+      setupPushNotifications()
+    }
+  }, [setupPushNotifications])
 
   const showNotification = (title: string, body: string) => {
     if ('Notification' in window && Notification.permission === 'granted') {
