@@ -43,19 +43,26 @@ export async function POST(request: Request) {
       }
     })
 
-    // Add user to General channel if it exists
-    const generalChannel = await prisma.channel.findFirst({
+    // Add user to General channel (create if doesn't exist)
+    let generalChannel = await prisma.channel.findFirst({
       where: { name: 'General' }
     })
 
-    if (generalChannel) {
-      await prisma.channelMember.create({
+    if (!generalChannel) {
+      generalChannel = await prisma.channel.create({
         data: {
-          channelId: generalChannel.id,
-          userId: user.id
+          name: 'General',
+          description: 'General discussion for the team'
         }
       })
     }
+
+    await prisma.channelMember.create({
+      data: {
+        channelId: generalChannel.id,
+        userId: user.id
+      }
+    })
 
     return NextResponse.json({
       user: {

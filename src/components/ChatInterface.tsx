@@ -702,9 +702,11 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
               </div>
               <h3 className="text-lg font-medium text-white mb-1">No messages yet</h3>
               <p className="text-gray-400 text-sm max-w-xs">
-                {selectedChat?.type === 'channel' 
-                  ? `Start the conversation in #${selectedChat.name}`
-                  : `Say hi to ${selectedChat?.name}!`
+                {!selectedChat 
+                  ? 'Select a chat to get started'
+                  : selectedChat.type === 'channel' 
+                    ? `Start the conversation in #${selectedChat.name}`
+                    : `Say hi to ${selectedChat.name}!`
                 }
               </p>
             </div>
