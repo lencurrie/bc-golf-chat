@@ -57,7 +57,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
   const [dmsExpanded, setDmsExpanded] = useState(true)
   const [typingUsers, setTypingUsers] = useState<Profile[]>([])
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
-  const [unreadCounts] = useState<Map<string, number>>(new Map()) // For future unread tracking
+  const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map())
   
   // Context menu and modal states
   const [contextMenu, setContextMenu] = useState<{
@@ -84,6 +84,47 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
   useEffect(() => {
     scrollToBottom('auto')
   }, [messages.length, scrollToBottom])
+
+  // Load unread counts
+  const loadUnreadCounts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/messages/unread')
+      if (res.ok) {
+        const data = await res.json()
+        const counts = new Map(Object.entries(data.unreadCounts).map(([k, v]) => [k, v as number]))
+        setUnreadCounts(counts)
+      }
+    } catch (error) {
+      console.error('Failed to load unread counts:', error)
+    }
+  }, [])
+
+  // Mark channel as read
+  const markChannelAsRead = useCallback(async (channelId: string) => {
+    try {
+      await fetch('/api/messages/unread', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId })
+      })
+      
+      // Update local unread count
+      setUnreadCounts(prev => {
+        const newCounts = new Map(prev)
+        newCounts.set(channelId, 0)
+        return newCounts
+      })
+    } catch (error) {
+      console.error('Failed to mark as read:', error)
+    }
+  }, [])
+
+  // Load unread counts on mount and periodically
+  useEffect(() => {
+    loadUnreadCounts()
+    const interval = setInterval(loadUnreadCounts, 30000) // Every 30 seconds
+    return () => clearInterval(interval)
+  }, [loadUnreadCounts])
 
   // Update online status
   useEffect(() => {
@@ -135,6 +176,11 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
           if (msgs.length > 0) {
             lastMessageTimeRef.current = msgs[msgs.length - 1].createdAt
           }
+          
+          // Mark channel as read for channels (not DMs)
+          if (selectedChat.type === 'channel') {
+            markChannelAsRead(selectedChat.id)
+          }
         }
       } catch (error) {
         console.error('Failed to load messages:', error)
@@ -145,7 +191,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
     }
 
     loadMessages()
-  }, [selectedChat, scrollToBottom])
+  }, [selectedChat, scrollToBottom, markChannelAsRead])
 
   // Poll for new messages and typing indicators
   useEffect(() => {
@@ -165,6 +211,11 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
           if (res.ok && data.messages?.length > 0) {
             setMessages(prev => [...prev, ...data.messages])
             lastMessageTimeRef.current = data.messages[data.messages.length - 1].createdAt
+            
+            // Mark channel as read since we're viewing it
+            if (selectedChat.type === 'channel') {
+              markChannelAsRead(selectedChat.id)
+            }
             
             // Show notification for messages from others
             const latestMsg = data.messages[data.messages.length - 1]
@@ -339,6 +390,44 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
       }
     } catch (error) {
       console.error('Edit failed:', error)
+    }
+  }
+
+  // Pin message
+  const handlePinMessage = async (messageId: string) => {
+    try {
+      const res = await fetch('/api/messages/pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId })
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId ? { ...msg, ...data.message } : msg
+        ))
+      }
+    } catch (error) {
+      console.error('Pin message failed:', error)
+    }
+  }
+
+  // Unpin message
+  const handleUnpinMessage = async (messageId: string) => {
+    try {
+      const res = await fetch(`/api/messages/pin?messageId=${messageId}`, {
+        method: 'DELETE'
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId ? { ...msg, ...data.message } : msg
+        ))
+      }
+    } catch (error) {
+      console.error('Unpin message failed:', error)
     }
   }
 
@@ -804,6 +893,8 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
                         setEditContent(msg.content)
                       }}
                       onDelete={() => handleDeleteMessage(msg.id)}
+                      onPin={() => handlePinMessage(msg.id)}
+                      onUnpin={() => handleUnpinMessage(msg.id)}
                       isEditing={editingMessage === msg.id}
                       editContent={editContent}
                       onEditChange={setEditContent}

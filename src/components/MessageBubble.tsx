@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Message, DirectMessage, Profile, Reaction, Attachment } from '@/types/database'
 import { 
   Reply, Smile, Edit2, Trash2, 
-  Check, X, ExternalLink, Download
+  Check, X, ExternalLink, Download, Pin, PinOff
 } from 'lucide-react'
 import { format, isToday, isYesterday } from 'date-fns'
 import { QuickReactions } from './EmojiPicker'
@@ -18,6 +18,8 @@ interface MessageBubbleProps {
   onReply: () => void
   onEdit: () => void
   onDelete: () => void
+  onPin?: () => void
+  onUnpin?: () => void
   isEditing: boolean
   editContent: string
   onEditChange: (content: string) => void
@@ -34,6 +36,8 @@ export default function MessageBubble({
   onReply,
   onEdit,
   onDelete,
+  onPin,
+  onUnpin,
   isEditing,
   editContent,
   onEditChange,
@@ -228,6 +232,12 @@ export default function MessageBubble({
             {message.isEdited && (
               <span className="text-xs text-gray-500">(edited)</span>
             )}
+            {(message as Message).isPinned && (
+              <span className="inline-flex items-center gap-1 text-xs text-amber-400">
+                <Pin className="w-3 h-3" />
+                pinned
+              </span>
+            )}
           </div>
         )}
 
@@ -359,6 +369,21 @@ export default function MessageBubble({
             >
               <Reply className="w-4 h-4" />
             </button>
+
+            {/* Pin/Unpin button - only for channel messages */}
+            {(message as Message).channelId && (
+              <button
+                onClick={(message as Message).isPinned ? onUnpin : onPin}
+                className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+                title={(message as Message).isPinned ? 'Unpin message' : 'Pin message'}
+              >
+                {(message as Message).isPinned ? (
+                  <PinOff className="w-4 h-4" />
+                ) : (
+                  <Pin className="w-4 h-4" />
+                )}
+              </button>
+            )}
 
             {isOwn && (
               <>

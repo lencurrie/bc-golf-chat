@@ -28,6 +28,7 @@ model Profile {
   channelMemberships ChannelMember[]
   createdChannels    Channel[]          @relation("ChannelCreator")
   sentMessages       Message[]          @relation("MessageSender")
+  pinnedMessages     Message[]          @relation("MessagePinner")
   sentDMs            DirectMessage[]    @relation("DMSender")
   receivedDMs        DirectMessage[]    @relation("DMRecipient")
   pushSubscriptions  PushSubscription[]
@@ -79,6 +80,9 @@ model Message {
   senderId      String   @map("sender_id")
   replyToId     String?  @map("reply_to_id")
   isEdited      Boolean  @default(false) @map("is_edited")
+  isPinned      Boolean  @default(false) @map("is_pinned")
+  pinnedAt      DateTime? @map("pinned_at")
+  pinnedBy      String?  @map("pinned_by")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -89,9 +93,11 @@ model Message {
   replies     Message[]     @relation("MessageReplies")
   reactions   Reaction[]
   attachments Attachment[]
+  pinner      Profile?      @relation("MessagePinner", fields: [pinnedBy], references: [id], onDelete: SetNull)
 
   @@index([channelId])
   @@index([createdAt(sort: Desc)])
+  @@index([channelId, isPinned])
   @@map("messages")
 }
 

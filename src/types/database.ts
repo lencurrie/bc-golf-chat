@@ -59,9 +59,13 @@ export interface Message {
   senderId: string
   replyToId: string | null
   isEdited: boolean
+  isPinned: boolean
+  pinnedAt: string | null
+  pinnedBy: string | null
   createdAt: string
   updatedAt: string
   sender?: Profile
+  pinner?: Profile
   replyTo?: Message
   reactions?: Reaction[]
   attachments?: Attachment[]
