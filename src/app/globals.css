@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #1e3a3a;
+  --primary-light: #2d5454;
+  --accent: #4ade80;
+}
+
+/* Custom scrollbar for chat */
+.chat-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 3px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+/* Mobile-friendly touch targets */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Safe area for notched phones */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Message bubbles */
+.message-bubble {
+  @apply rounded-2xl px-4 py-2 max-w-[85%] break-words;
+}
+
+.message-bubble-sent {
+  @apply bg-green-600 text-white rounded-br-md;
+}
+
+.message-bubble-received {
+  @apply bg-gray-700 text-white rounded-bl-md;
+}
+
+/* Input focus states */
+input:focus, textarea:focus {
+  @apply outline-none ring-2 ring-green-500;
+}
+
+/* Smooth animations */
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* PWA install banner */
+.pwa-install-banner {
+  @apply fixed bottom-4 left-4 right-4 bg-green-600 text-white p-4 rounded-xl shadow-lg z-50;
+}
