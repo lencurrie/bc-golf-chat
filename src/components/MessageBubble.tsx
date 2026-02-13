@@ -232,7 +232,7 @@ export default function MessageBubble({
             {message.isEdited && (
               <span className="text-xs text-gray-500">(edited)</span>
             )}
-            {(message as Message).isPinned && (
+            {'isPinned' in message && message.isPinned && (
               <span className="inline-flex items-center gap-1 text-xs text-amber-400">
                 <Pin className="w-3 h-3" />
                 pinned
@@ -371,13 +371,13 @@ export default function MessageBubble({
             </button>
 
             {/* Pin/Unpin button - only for channel messages */}
-            {(message as Message).channelId && (
+            {'channelId' in message && (
               <button
-                onClick={(message as Message).isPinned ? onUnpin : onPin}
+                onClick={'isPinned' in message && message.isPinned ? onUnpin : onPin}
                 className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
-                title={(message as Message).isPinned ? 'Unpin message' : 'Pin message'}
+                title={'isPinned' in message && message.isPinned ? 'Unpin message' : 'Pin message'}
               >
-                {(message as Message).isPinned ? (
+                {'isPinned' in message && message.isPinned ? (
                   <PinOff className="w-4 h-4" />
                 ) : (
                   <Pin className="w-4 h-4" />

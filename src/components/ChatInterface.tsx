@@ -182,7 +182,9 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
           
           // Count pinned messages for channels
           if (selectedChat.type === 'channel') {
-            const pinnedCount = msgs.filter((msg: Message) => (msg as Message).isPinned).length
+            const pinnedCount = msgs.filter((msg: Message | DirectMessage) => 
+              'isPinned' in msg && msg.isPinned
+            ).length
             setPinnedMessageCount(pinnedCount)
             markChannelAsRead(selectedChat.id)
           }
@@ -415,7 +417,9 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
           )
           // Update pinned count
           if (selectedChat?.type === 'channel') {
-            const pinnedCount = updated.filter((msg: Message) => (msg as Message).isPinned).length
+            const pinnedCount = updated.filter((msg: Message | DirectMessage) => 
+              'isPinned' in msg && msg.isPinned
+            ).length
             setPinnedMessageCount(pinnedCount)
           }
           return updated
@@ -441,7 +445,9 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
           )
           // Update pinned count
           if (selectedChat?.type === 'channel') {
-            const pinnedCount = updated.filter((msg: Message) => (msg as Message).isPinned).length
+            const pinnedCount = updated.filter((msg: Message | DirectMessage) => 
+              'isPinned' in msg && msg.isPinned
+            ).length
             setPinnedMessageCount(pinnedCount)
           }
           return updated
