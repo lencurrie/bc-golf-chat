@@ -44,7 +44,10 @@ export async function sendNotificationToUsers(
   url?: string,
   tag?: string
 ) {
+  console.log('[PUSH] sendNotificationToUsers called for:', userIds, title)
+  
   if (!ensureVapidConfigured()) {
+    console.log('[PUSH] VAPID not configured, returning false')
     return false
   }
   
@@ -52,6 +55,8 @@ export async function sendNotificationToUsers(
     const subscriptions = await prisma.pushSubscription.findMany({
       where: { userId: { in: userIds } }
     })
+    
+    console.log('[PUSH] Found subscriptions:', subscriptions.length)
 
     const payload: PushNotificationPayload = {
       title,
@@ -62,6 +67,7 @@ export async function sendNotificationToUsers(
 
     const promises = subscriptions.map(async (subscription) => {
       try {
+        console.log('[PUSH] Sending to:', subscription.endpoint.slice(0, 60) + '...')
         await webpush.sendNotification(
           {
             endpoint: subscription.endpoint,
@@ -72,8 +78,9 @@ export async function sendNotificationToUsers(
           },
           JSON.stringify(payload)
         )
+        console.log('[PUSH] Sent successfully')
       } catch (error) {
-        console.error('Failed to send push notification:', error)
+        console.error('[PUSH] Failed to send:', error)
         
         if (error instanceof Error && error.message.includes('410')) {
           await prisma.pushSubscription.delete({
