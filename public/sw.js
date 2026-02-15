@@ -30,8 +30,8 @@ self.addEventListener('push', event => {
 
   const options = {
     body: data.body || 'New message received',
-    icon: '/icon-192x192.png',
-    badge: '/badge-72x72.png',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     tag: data.tag || 'bc-golf-chat',
     data: data.url || '/',
     actions: [
