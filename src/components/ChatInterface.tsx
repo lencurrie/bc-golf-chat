@@ -79,7 +79,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
   const [profileModal, setProfileModal] = useState<Profile | null>(null)
   const [userStatus, setUserStatus] = useState<string | null>(currentUser.status || null)
   const [showPinnedMessages, setShowPinnedMessages] = useState(false)
-  const [totalUnread, setTotalUnread] = useState(0)
+  const [, setTotalUnread] = useState(0)
   const [pinnedMessageCount, setPinnedMessageCount] = useState(0)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -379,7 +379,7 @@ export default function ChatInterface({ currentUser, initialChannels, allUsers }
       const audio = new Audio('/notification.mp3')
       audio.volume = 0.5
       audio.play().catch(() => {})
-    } catch (e) {
+    } catch {
       console.log('Could not play notification sound')
     }
     
